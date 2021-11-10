@@ -1,16 +1,34 @@
-# final-project-template
+# Class XX final project
 
-## Notable libraries
+## Stack / deployment libraries
 
-In this section we will add the libraries that we use and what they are used for.
+The base stack of the app is a MERN stack (Mongoose, Express, React, Node). Next to that we make use of the following extras:
 
-### Prettier
+- `dotenv` - To load the .env variables into the process environment. See [docs](https://www.npmjs.com/package/dotenv)
+
+## Developing / dev libraries
+
+To start developing, both the client and the server have the following command to set up the developer environment:
+
+`npm run dev`
+
+On the server this will run `nodemon` so that any changes automatically cause a restart of the server.
+
+### Testing
+
+For testing we use `jest` on both the client and server side. For the client we use the `react-testing-library` (see documentation [here](https://testing-library.com/docs/react-testing-library/intro/)). For the server side we use `supertest` (see documentation [here](https://github.com/visionmedia/supertest)).
+
+### Automation configuration
+
+We have some checks that runs automatically and ensures that we as a team are consistent in styling and code. To accomplish that we use a combination of prettier, eslint and husky to run tests. These will also be run on every PR that goes to the `develop` and `main` branches in our project. Have a look below for explanations on each of these tools and what they do.
+
+#### Prettier
 
 We use prettier to ensure that our code is formatted consistently. The `client` and `server` both have their own configuration files to allow for differences between the two if absolutely necessary.
 
 To run a check for code formatting use `npm run prettier`. To autofix issues run `npm run prettier:fix`.
 
-### ESlint
+#### ESlint
 
 We use ESlint to ensure that our code is styled consistently. The `client` and `server` both have their own configuration files to allow for differences between the two if absolutely necessary. We extend from the base airbnb styles mentioned [here](https://github.com/airbnb/javascript) and write a comment for any changes.
 
@@ -28,7 +46,7 @@ console.log("bar");
 
 Make sure you add a comment to explain why the exception is needed.
 
-### Husky
+#### Husky
 
 We use Husky to automatically run our lint/prettier checks as well as our tests before committing files. This will ensure that any code that is pushed is according to our code styles and is fully tested. You can run these tests yourself aswell by running:
 
