@@ -19,6 +19,8 @@ module.exports = {
     sourceType: "module",
   },
   rules: {
+    // prettier does double quotes so make that the default
+    quotes: ["error", "double"],
     // block any code that is not formatted according to prettier formatting rules
     "prettier/prettier": "error",
     // turned off the rule to make everything a default export
