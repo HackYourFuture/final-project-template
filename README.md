@@ -35,3 +35,5 @@ We use Husky to automatically run our lint/prettier checks as well as our tests 
 `npm run pre-commit`
 
 Remember that there are commands to run autofixes for lint/prettier, have a look at the `package.json` to see what is available.
+
+If you are confident nothing is broken you can write `git commit --no-verify` to allow github to do the checks!
