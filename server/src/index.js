@@ -1,15 +1,10 @@
-require("dotenv").config();
-const express = require("express");
+// Load our .env variables
+import dotenv from "dotenv";
 
-const { logInfo, logError } = require("./util/logging");
+import app from "./app.js";
+import { logInfo, logError } from "./util/logging.js";
 
-// Create an express server
-const app = express();
-
-// Tell express to use the json middleware
-app.use(express.json());
-
-app.get("/", (req, res) => res.send("Hello World!"));
+dotenv.config();
 
 // The environment should set the port
 const { PORT } = process.env;

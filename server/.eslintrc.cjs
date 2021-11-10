@@ -10,6 +10,7 @@ module.exports = {
   env: {
     browser: true,
     es2021: true,
+    jest: true,
   },
   plugins: ["prettier"],
   // We use the airbnb style guide as a base. More information about that here: https://github.com/airbnb/javascript
@@ -25,5 +26,7 @@ module.exports = {
     "prettier/prettier": "error",
     // turned off the rule to make everything a default export
     "import/prefer-default-export": "off",
+    // turned off the rule that you should not have file extensions. For modules in node this is actually required
+    "import/extensions": "off",
   },
 };
