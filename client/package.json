@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "pre-commit": "npm run prettier:fix && npm run lint:fix",
+    "code-style-check": "npm run prettier && npm run lint", 
+    "pre-commit": "npm run code-style-check",
+    "autofix": "npm run lint:fix && npm run prettier:fix",
     "lint": "eslint ./src",
     "lint:fix": "eslint ./src --fix",
     "prettier": "prettier ./src --check",
