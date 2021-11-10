@@ -10,7 +10,10 @@
     "prepare": "husky install",
     "pre-commit": "npm run pre-commit:client && npm run pre-commit:server",
     "pre-commit:client": "cd client && npm run pre-commit && cd ..",
-    "pre-commit:server": "cd server && npm run pre-commit && cd .."
+    "pre-commit:server": "cd server && npm run pre-commit && cd ..",
+    "autofix": "npm run autofix:client && npm run autofix:server",
+    "autofix:client": "cd client && npm run autofix && cd ..",
+    "autofix:server": "cd server && npm run autofix && cd .."
   },
   "repository": {
     "type": "git",

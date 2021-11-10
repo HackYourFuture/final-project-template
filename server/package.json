@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\"",
-    "pre-commit": "npm run prettier:fix && npm run lint:fix",
+    "pre-commit": "npm run prettier && npm run lint",
+    "autofix": "npm run lint:fix && npm run prettier:fix",
     "lint": "eslint ./src",
     "lint:fix": "eslint ./src --fix",
     "prettier": "prettier ./src --check",
