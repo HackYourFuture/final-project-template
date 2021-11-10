@@ -1,5 +1,5 @@
-# This workflow will do our code style checks
-name: Code style (prettier, lint)
+# This workflow will do our code style checks for the Client
+name: Client Code style (prettier, lint)
 
 on:
   push:
@@ -26,4 +26,6 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     - run: npm ci
+      working-directory: client
     - run: npm run code-style-check
+      working-directory: client
