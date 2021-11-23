@@ -4,6 +4,8 @@
   "description": "## Notable libraries",
   "main": "index.js",
   "scripts": {
+    "start": "npm run start:server",
+    "start:server": "cd client && npm start",
     "test": "npm run test:client && npm run test:server",
     "test:client": "cd client && npm run test && cd ..",
     "test:server": "cd server && npm run test && cd ..",
