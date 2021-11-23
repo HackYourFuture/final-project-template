@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "dev": "webpack serve",
-    "build": "webpack -p --mode=production",
+    "build": "webpack --mode=production",
     "setup": "npm install --dev",
     "code-style-check": "npm run prettier && npm run lint",
     "pre-commit": "npm run code-style-check",
