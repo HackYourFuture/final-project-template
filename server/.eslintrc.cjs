@@ -13,8 +13,6 @@ module.exports = {
     jest: true,
   },
   plugins: ["prettier"],
-  // We use the airbnb style guide as a base. More information about that here: https://github.com/airbnb/javascript
-  extends: ["airbnb-base"],
   parserOptions: {
     ecmaVersion: 13,
     sourceType: "module",
