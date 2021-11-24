@@ -8,13 +8,12 @@
 
 module.exports = {
   env: {
-    browser: true,
+    node: true,
     es2021: true,
     jest: true,
   },
+  extends: ["eslint:recommended"],
   plugins: ["prettier"],
-  // We use the airbnb style guide as a base. More information about that here: https://github.com/airbnb/javascript
-  extends: ["airbnb-base"],
   parserOptions: {
     ecmaVersion: 13,
     sourceType: "module",

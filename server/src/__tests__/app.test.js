@@ -3,13 +3,13 @@ import app from "../app.js";
 
 const request = supertest(app);
 
-describe("GET /", () => {
+describe("GET /api/status", () => {
   it("Returns a Server is running message as default", (done) => {
     request
-      .get("/")
+      .get("/api/status")
       .then((response) => {
         expect(response.status).toBe(200);
-        expect(response.text).toBe("Server is running");
+        expect(response.text).toContain("Server is running on port:");
 
         done();
       })

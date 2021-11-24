@@ -4,6 +4,17 @@
   "description": "## Notable libraries",
   "main": "index.js",
   "scripts": {
+    "start": "npm run start:server",
+    "start:server": "cd server && npm run start && cd ..",
+    "build": "echo \"Build script ignored! Heroku will use this and we want to have full control\"",
+    "build:client": "cd client && npm run build && cd ..",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev && cd ..",
+    "dev:server": "cd server && npm run dev && cd ..",
+    "setup": "npm run setup:client && npm run setup:server",
+    "setup:client": "cd client && npm run setup && cd ..",
+    "setup:server": "cd server && npm run setup && cd ..",
+    "heroku-postbuild": "npm run setup && npm run build:client",
     "test": "npm run test:client && npm run test:server",
     "test:client": "cd client && npm run test && cd ..",
     "test:server": "cd server && npm run test && cd ..",
@@ -31,5 +42,8 @@
   "devDependencies": {
     "@types/jest": "^27.0.2",
     "husky": "^7.0.0"
+  },
+  "dependencies": {
+    "concurrently": "^6.4.0"
   }
 }

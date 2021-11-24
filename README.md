@@ -5,6 +5,7 @@
 The base stack of the app is a MERN stack (Mongoose, Express, React, Node). Next to that we make use of the following extras:
 
 - `dotenv` - To load the .env variables into the process environment. See [docs](https://www.npmjs.com/package/dotenv)
+- `webpack` - To bundle our React app and create a static app to host. See [docs](https://webpack.js.org/)
 
 ## Developing / dev libraries
 
