@@ -1,5 +1,7 @@
 const path = require("path");
+const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+require("dotenv").config();
 
 module.exports = {
   mode: "development",
@@ -35,6 +37,11 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: path.join(__dirname, "public", "index.html"),
+    }),
+    // All variables in our .env should be mentioned here
+    new webpack.EnvironmentPlugin({
+      // Default is '' because on our heroku servers we want to have it default to our current URL
+      BASE_SERVER_URL: "",
     }),
   ],
 };

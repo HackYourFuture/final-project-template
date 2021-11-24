@@ -20,11 +20,13 @@
   "license": "ISC",
   "devDependencies": {
     "@babel/core": "^7.16.0",
+    "@babel/plugin-transform-runtime": "^7.16.4",
     "@babel/preset-env": "^7.16.0",
     "@babel/preset-react": "^7.16.0",
     "@testing-library/jest-dom": "^5.15.0",
     "@testing-library/react": "^12.1.2",
     "babel-loader": "^8.2.3",
+    "dotenv": "^10.0.0",
     "eslint": "^7.32.0",
     "eslint-config-airbnb": "^18.2.1",
     "eslint-config-airbnb-base": "^15.0.0",
