@@ -40,6 +40,7 @@
   },
   "homepage": "https://github.com/HackYourFuture/final-project-template#readme",
   "devDependencies": {
+    "@types/jest": "^27.0.2",
     "husky": "^7.0.0"
   },
   "dependencies": {
