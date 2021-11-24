@@ -4,7 +4,7 @@
   "description": "## Notable libraries",
   "main": "index.js",
   "scripts": {
-    "start": "echo \"Start script ignored! Heroku will use this and we want to have full control\"",
+    "start": "npm run start:server",
     "start:server": "cd server && npm run start && cd ..",
     "build": "echo \"Build script ignored! Heroku will use this and we want to have full control\"",
     "build:client": "cd client && npm run build && cd ..",
