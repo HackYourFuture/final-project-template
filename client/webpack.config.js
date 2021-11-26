@@ -44,4 +44,8 @@ module.exports = {
       BASE_SERVER_URL: "",
     }),
   ],
+  // To tell the dev server that everything should go back to index.html
+  devServer: {
+    historyApiFallback: true,
+  },
 };
