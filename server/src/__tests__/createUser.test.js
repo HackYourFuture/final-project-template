@@ -4,9 +4,9 @@ import {
   connectToMockDB,
   closeMockDatabase,
   clearMockDatabase,
-} from "./__testUtils__/dbMock.js";
+} from "../__testUtils__/dbMock.js";
 import app from "../app.js";
-import { findUserInMockDB } from "./__testUtils__/userMocks.js";
+import { findUserInMockDB } from "../__testUtils__/userMocks.js";
 
 const request = supertest(app);
 

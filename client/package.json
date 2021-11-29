@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "dev": "webpack serve",
     "build": "webpack --mode=production",
     "setup": "npm install --dev",
@@ -38,6 +40,7 @@
     "eslint-plugin-react-hooks": "^4.3.0",
     "html-webpack-plugin": "^5.5.0",
     "jest": "^27.3.1",
+    "jest-fetch-mock": "^3.0.3",
     "prettier": "^2.4.1",
     "prettier-eslint": "^13.0.0",
     "webpack": "^5.64.2",

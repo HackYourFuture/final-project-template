@@ -7,6 +7,7 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "setup": "npm install",
     "start": "node ./src/index",
     "dev": "nodemon ./src/index",

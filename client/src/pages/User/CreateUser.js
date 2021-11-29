@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import useFetch from "../../hooks/useFetch";
+import TEST_ID from "./CreateUser.testid";
 
 const CreateUser = () => {
   const [name, setName] = useState("");
@@ -36,7 +37,7 @@ const CreateUser = () => {
   }
 
   return (
-    <>
+    <div data-testid={TEST_ID.container}>
       <h1>What should the user be?</h1>
       <form onSubmit={handleSubmit}>
         <input
@@ -52,7 +53,7 @@ const CreateUser = () => {
         <button type="submit">Submit</button>
       </form>
       {statusComponent}
-    </>
+    </div>
   );
 };
 
