@@ -16,14 +16,27 @@ export const getUsers = async (req, res) => {
 
 export const createUser = async (req, res) => {
   try {
-    const errorList = validateUser(req.body.user);
+    const { user } = req.body;
+
+    if (typeof user !== "object") {
+      res.status(400).json({
+        success: false,
+        msg: `You need to provide a 'user' object. Received: ${JSON.stringify(
+          user
+        )}`,
+      });
+
+      return;
+    }
+
+    const errorList = validateUser(user);
 
     if (errorList.length > 0) {
       res
         .status(400)
         .json({ success: false, msg: validationErrorMessage(errorList) });
     } else {
-      const newUser = await User.create(req.body.user);
+      const newUser = await User.create(user);
 
       res.status(201).json({ success: true, user: newUser });
     }

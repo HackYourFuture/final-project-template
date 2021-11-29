@@ -7,10 +7,8 @@ const UserList = () => {
   const [users, setUsers] = useState([]);
   const { isLoading, error, performFetch } = useFetch("/user", (response) => {
     setUsers(response.result);
-    console.log(response);
   });
 
-  console.log("users", users);
   useEffect(performFetch, []);
 
   if (isLoading) {
@@ -18,7 +16,6 @@ const UserList = () => {
   }
 
   if (error != null) {
-    console.error(error);
     return <>Error: {error.toString()}</>;
   }
 

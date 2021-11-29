@@ -29,6 +29,7 @@ module.exports = {
   plugins: ["react"],
   rules: {
     quotes: ["error", "double"],
+    "no-console": "error",
   },
   settings: {
     react: {
