@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
+import Input from "../../components/Input";
 import useFetch from "../../hooks/useFetch";
 import TEST_ID from "./CreateUser.testid";
 
@@ -11,10 +12,14 @@ const CreateUser = () => {
     setName("");
     setEmail("");
   };
-  const { isLoading, error, performFetch } = useFetch(
+  const { isLoading, error, performFetch, cancelFetch } = useFetch(
     "/user/create",
     onSuccess
   );
+
+  useEffect(() => {
+    return cancelFetch;
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -27,30 +32,38 @@ const CreateUser = () => {
     });
   };
 
-  let statusComponent = <></>;
+  let statusComponent = null;
   if (error != null) {
     statusComponent = (
-      <>Error while trying to create user: {error.toString()}</>
+      <div data-testid={TEST_ID.errorContainer}>
+        Error while trying to create user: {error.toString()}
+      </div>
     );
   } else if (isLoading) {
-    statusComponent = <>Creating user....</>;
+    statusComponent = (
+      <div data-testid={TEST_ID.loadingContainer}>Creating user....</div>
+    );
   }
 
   return (
     <div data-testid={TEST_ID.container}>
       <h1>What should the user be?</h1>
       <form onSubmit={handleSubmit}>
-        <input
+        <Input
           name="name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(value) => setName(value)}
+          data-testid={TEST_ID.nameInput}
         />
-        <input
+        <Input
           name="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(value) => setEmail(value)}
+          data-testid={TEST_ID.emailInput}
         />
-        <button type="submit">Submit</button>
+        <button type="submit" data-testid={TEST_ID.submitButton}>
+          Submit
+        </button>
       </form>
       {statusComponent}
     </div>

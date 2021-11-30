@@ -1,7 +1,7 @@
 import cleanFilename from "../../util/cleanFilename";
 
-const testids = {
+const TEST_ID = {
   container: `${cleanFilename(__filename)}-container`,
 };
 
-export default testids;
+export default TEST_ID;

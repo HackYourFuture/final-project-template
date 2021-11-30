@@ -1,4 +1,5 @@
 import React from "react";
+import PropTypes from "prop-types";
 import { BrowserRouter as Router } from "react-router-dom";
 
 /**
@@ -9,7 +10,7 @@ const AppWrapper = ({ children }) => {
 };
 
 AppWrapper.propTypes = {
-  children: React.Node,
+  children: PropTypes.element.isRequired,
 };
 
 export default AppWrapper;
