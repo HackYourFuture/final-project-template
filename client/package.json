@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "dev": "webpack serve",
     "build": "webpack --mode=production",
     "setup": "npm install --dev",
@@ -25,6 +27,7 @@
     "@babel/preset-react": "^7.16.0",
     "@testing-library/jest-dom": "^5.15.0",
     "@testing-library/react": "^12.1.2",
+    "@testing-library/react-hooks": "^7.0.2",
     "babel-loader": "^8.2.3",
     "dotenv": "^10.0.0",
     "eslint": "^7.32.0",
@@ -38,6 +41,7 @@
     "eslint-plugin-react-hooks": "^4.3.0",
     "html-webpack-plugin": "^5.5.0",
     "jest": "^27.3.1",
+    "jest-fetch-mock": "^3.0.3",
     "prettier": "^2.4.1",
     "prettier-eslint": "^13.0.0",
     "webpack": "^5.64.2",
@@ -45,7 +49,9 @@
     "webpack-dev-server": "^4.5.0"
   },
   "dependencies": {
+    "prop-types": "^15.7.2",
     "react": "^17.0.2",
-    "react-dom": "^17.0.2"
+    "react-dom": "^17.0.2",
+    "react-router-dom": "^6.0.2"
   }
 }

@@ -1,23 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { Routes, Route } from "react-router-dom";
+import Nav from "./components/Nav";
+import Home from "./pages/Home/Home";
+import CreateUser from "./pages/User/CreateUser";
+import UserList from "./pages/User/UserList";
 
 const App = () => {
-  const [status, setStatus] = useState(null);
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      const res = await fetch(`${process.env.BASE_SERVER_URL}/api/status`);
-      const { message } = await res.json();
-
-      setStatus(message);
-    };
-
-    fetchStatus();
-  }, []);
-
   return (
     <>
-      <h1>Hello world React!</h1>
-      {status && <h2>And our server says: {status}</h2>}
+      <Nav />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/user" element={<UserList />} />
+        <Route path="/user/create" element={<CreateUser />} />
+      </Routes>
     </>
   );
 };

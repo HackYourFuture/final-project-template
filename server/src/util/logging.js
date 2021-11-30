@@ -24,13 +24,13 @@ export const logWarning = (message) => {
 /**
  * logError should be used to log anything that is app breaking
  */
-export const logError = (message) => {
-  if (message instanceof Error) {
+export const logError = (errorMessage) => {
+  if (errorMessage instanceof Error) {
     // You can pass an Error to this function and we will post the stack
     // eslint-disable-next-line no-console
-    console.error(message, message.stack);
+    console.error(errorMessage.message, errorMessage.stack);
   } else {
     // eslint-disable-next-line no-console
-    console.error("ERROR: ", message);
+    console.error("ERROR: ", errorMessage);
   }
 };
