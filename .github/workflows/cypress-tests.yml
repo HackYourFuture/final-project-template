@@ -18,7 +18,6 @@ jobs:
         run: npm run setup
       - name: Cypress run
         uses: cypress-io/github-action@v2
-        working-directory: client
         with:
           # start up the dev environment
           start: npm run dev
