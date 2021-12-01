@@ -9,6 +9,13 @@ on:
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
+    env:
+      # Server environment variables
+      PORT: 5000
+      MONGODB_URL: ${{ secrets.CYPRESS_MONGODB_URL }}
+      # Client environment variables
+      BASE_SERVER_URL: http://localhost:5000
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
