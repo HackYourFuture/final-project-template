@@ -18,6 +18,7 @@
     "test": "npm run test:client && npm run test:server",
     "test:client": "cd client && npm run test && cd ..",
     "test:server": "cd server && npm run test && cd ..",
+    "test:cypress": "cypress run",
     "code-style-check": "npm run code-style-check:client && npm run code-style-check:server",
     "code-style-check:client": "cd client && npm run code-style-check && cd ..",
     "code-style-check:server": "cd server && npm run code-style-check && cd ..",
@@ -30,7 +31,8 @@
     "autofix:server": "cd server && npm run autofix && cd ..",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "cd client && npm run lint && cd ..",
-    "lint:server": "cd server && npm run lint && cd .."
+    "lint:server": "cd server && npm run lint && cd ..",
+    "cypress": "cypress open"
   },
   "repository": {
     "type": "git",
@@ -44,6 +46,7 @@
   "homepage": "https://github.com/HackYourFuture/final-project-template#readme",
   "devDependencies": {
     "@types/jest": "^27.0.2",
+    "cypress": "^9.1.0",
     "husky": "^7.0.0"
   },
   "dependencies": {

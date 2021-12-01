@@ -1,8 +1,8 @@
-import cleanFilename from "../util/cleanFilename";
+import createTestIdFilePath from "../util/createTestIdFilePath";
 
 const TEST_ID = {
-  linkToHome: `${cleanFilename(__filename)}-linkToHome`,
-  linkToUsers: `${cleanFilename(__filename)}-linkToUser`,
+  linkToHome: `${createTestIdFilePath("components", "Nav")}-linkToHome`,
+  linkToUsers: `${createTestIdFilePath("components", "Nav")}-linkToUser`,
 };
 
 export default TEST_ID;

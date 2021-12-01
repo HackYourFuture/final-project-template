@@ -28,7 +28,7 @@ const startServer = async () => {
 
 /****** Host our client code for Heroku *****/
 /**
- * We only want to host our client code when in production as we then want to use the production build.
+ * We only want to host our client code when in production mode as we then want to use the production build that is built in the dist folder.
  * When not in production, don't host the files, but the development version of the app can connect to the backend itself.
  */
 if (process.env.NODE_ENV === "production") {

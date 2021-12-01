@@ -41,7 +41,7 @@ const UserList = () => {
               );
             })}
         </ul>
-        <Link to="/user/create">
+        <Link to="/user/create" data-testid={TEST_ID.createUserButton}>
           <button>Create new user</button>
         </Link>
       </>
