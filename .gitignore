@@ -1,5 +1,16 @@
 node_modules
+
+# Don't push our production build
 dist
+
+# Don't push our coverage files for jest
 coverage
 
+# MacOS creates these files
+.DS_Store
+
+# Never push our environment variables
 .env
+
+# Cypress videos from our headless runs should not be pushed to github
+cypress/videos

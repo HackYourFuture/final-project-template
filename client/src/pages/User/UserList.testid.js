@@ -1,10 +1,23 @@
-import cleanFilename from "../../util/cleanFilename";
+import createTestIdFilePath from "../../util/createTestIdFilePath";
 
 const TEST_ID = {
-  container: `${cleanFilename(__filename)}-container`,
-  loadingContainer: `${cleanFilename(__filename)}-loadingContainer`,
-  errorContainer: `${cleanFilename(__filename)}-errorContainer`,
-  userList: `${cleanFilename(__filename)}-userList`,
+  container: `${createTestIdFilePath("pages", "User", "UserList")}-container`,
+  loadingContainer: `${createTestIdFilePath(
+    "pages",
+    "User",
+    "UserList"
+  )}-loadingContainer`,
+  errorContainer: `${createTestIdFilePath(
+    "pages",
+    "User",
+    "UserList"
+  )}-errorContainer`,
+  userList: `${createTestIdFilePath("pages", "User", "UserList")}-userList`,
+  createUserButton: `${createTestIdFilePath(
+    "pages",
+    "User",
+    "UserList"
+  )}-createUserButton`,
 };
 
 export default TEST_ID;

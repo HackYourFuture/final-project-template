@@ -1,0 +1,38 @@
+name: Cypress Tests
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+    env:
+      # Server environment variables
+      PORT: 5000
+      MONGODB_URL: ${{ secrets.CYPRESS_MONGODB_URL }}
+      # Client environment variables
+      BASE_SERVER_URL: http://localhost:5000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      # Install NPM dependencies, cache them correctly
+      # and run all Cypress tests
+      - name: Setup server and client
+        run: npm run setup
+      - name: Cypress run
+        uses: cypress-io/github-action@v2
+        with:
+          # start up the dev environment
+          start: npm run dev
+          browser: chrome
+          headless: true
+      - name: Upload videos
+        uses: actions/upload-artifact@v1
+        if: always()
+        with:
+          name: cypress-videos
+          path: cypress/videos

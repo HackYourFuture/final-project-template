@@ -1,7 +1,7 @@
-import cleanFilename from "../../util/cleanFilename";
+import createTestIdFilePath from "../../util/createTestIdFilePath";
 
 const TEST_ID = {
-  container: `${cleanFilename(__filename)}-container`,
+  container: `${createTestIdFilePath("pages", "Home", "Home")}-container`,
 };
 
 export default TEST_ID;

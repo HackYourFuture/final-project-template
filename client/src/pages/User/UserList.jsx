@@ -35,13 +35,13 @@ const UserList = () => {
           {users &&
             users.map((user) => {
               return (
-                <li key={user._id}>
+                <li key={user._id} data-elementid={user._id}>
                   {user.name} ({user.email})
                 </li>
               );
             })}
         </ul>
-        <Link to="/user/create">
+        <Link to="/user/create" data-testid={TEST_ID.createUserButton}>
           <button>Create new user</button>
         </Link>
       </>
