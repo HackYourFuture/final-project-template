@@ -4,13 +4,35 @@
   "description": "## Notable libraries",
   "main": "index.js",
   "scripts": {
+    "start": "npm run start:server",
+    "start:server": "cd server && npm run start && cd ..",
+    "build": "echo \"Build script ignored! Heroku will use this and we want to have full control\"",
+    "build:client": "cd client && npm run build && cd ..",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev && cd ..",
+    "dev:server": "cd server && npm run dev && cd ..",
+    "setup": "npm run setup:client && npm run setup:server",
+    "setup:client": "cd client && npm run setup && cd ..",
+    "setup:server": "cd server && npm run setup && cd ..",
+    "heroku-postbuild": "npm run setup && npm run build:client",
     "test": "npm run test:client && npm run test:server",
     "test:client": "cd client && npm run test && cd ..",
     "test:server": "cd server && npm run test && cd ..",
+    "test:cypress": "cypress run",
+    "code-style-check": "npm run code-style-check:client && npm run code-style-check:server",
+    "code-style-check:client": "cd client && npm run code-style-check && cd ..",
+    "code-style-check:server": "cd server && npm run code-style-check && cd ..",
     "prepare": "husky install",
     "pre-commit": "npm run pre-commit:client && npm run pre-commit:server",
     "pre-commit:client": "cd client && npm run pre-commit && cd ..",
-    "pre-commit:server": "cd server && npm run pre-commit && cd .."
+    "pre-commit:server": "cd server && npm run pre-commit && cd ..",
+    "autofix": "npm run autofix:client && npm run autofix:server",
+    "autofix:client": "cd client && npm run autofix && cd ..",
+    "autofix:server": "cd server && npm run autofix && cd ..",
+    "lint": "npm run lint:client && npm run lint:server",
+    "lint:client": "cd client && npm run lint && cd ..",
+    "lint:server": "cd server && npm run lint && cd ..",
+    "cypress": "cypress open"
   },
   "repository": {
     "type": "git",
@@ -23,6 +45,12 @@
   },
   "homepage": "https://github.com/HackYourFuture/final-project-template#readme",
   "devDependencies": {
+    "@types/jest": "^27.0.2",
+    "axios": "^0.24.0",
+    "cypress": "^9.1.0",
     "husky": "^7.0.0"
+  },
+  "dependencies": {
+    "concurrently": "^6.4.0"
   }
 }

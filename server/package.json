@@ -3,9 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\"",
-    "pre-commit": "npm run prettier:fix && npm run lint:fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "setup": "npm install",
+    "start": "node ./src/index",
+    "dev": "nodemon ./src/index",
+    "code-style-check": "npm run prettier && npm run lint",
+    "pre-commit": "npm run code-style-check",
+    "autofix": "npm run lint:fix && npm run prettier:fix",
     "lint": "eslint ./src",
     "lint:fix": "eslint ./src --fix",
     "prettier": "prettier ./src --check",
@@ -14,13 +22,24 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@babel/preset-env": "^7.16.0",
+    "babel-jest": "^27.3.1",
     "eslint": "^8.2.0",
     "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.25.2",
-    "prettier-eslint": "^13.0.0",
     "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.25.2",
     "eslint-plugin-prettier": "^4.0.0",
-    "prettier": "^2.4.1"
+    "jest": "^27.3.1",
+    "nodemon": "^2.0.15",
+    "prettier": "^2.4.1",
+    "prettier-eslint": "^13.0.0",
+    "supertest": "^6.1.6"
   },
-  "dependencies": {}
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "mongodb-memory-server": "^8.0.3",
+    "mongoose": "^6.0.13"
+  }
 }
