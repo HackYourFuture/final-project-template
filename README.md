@@ -1,58 +1,117 @@
+`TODO: Add a nice screenshot of the app!`
+
 # Class XX final project
 
-## Stack / deployment libraries
+This is the final project for the HackYourFuture curriculum we did as a class using the MERN stack by following the agile methodology with our team and a group of mentors. A quick guide to what we built:
 
-The base stack of the app is a MERN stack (Mongoose, Express, React, Node). Next to that we make use of the following extras:
+> TODO: Add short description of the app
 
-- `dotenv` - To load the .env variables into the process environment. See [docs](https://www.npmjs.com/package/dotenv)
-- `webpack` - To bundle our React app and create a static app to host. See [docs](https://webpack.js.org/)
+`[Click here for the Demo version](TODO: add link)`
 
-## Developing / dev libraries
+## 1. Setup
 
-To start developing, both the client and the server have the following command to set up the developer environment:
+First, to setup all the directories run the following in the main directory:
+
+`npm run install`
+`npm run setup`
+
+The first command will install `cypress` and some small libraries needed for running the rest of the commands. The second will go into the `client` and `server` directories and set those up to be ran.
+
+In the `client` and `server` directory there are two `.env.example` files. Create a copy and rename that to `.env`. Then follow the instructions in those files to fill in the right values.
+
+To run the app in dev mode you can run the following command in the main directory:
 
 `npm run dev`
 
-On the server this will run `nodemon` so that any changes automatically cause a restart of the server.
+## 2. Code structure
 
-### Testing
-
-For testing we use `jest` on both the client and server side. For the client we use the `react-testing-library` (see documentation [here](https://testing-library.com/docs/react-testing-library/intro/)). For the server side we use `supertest` (see documentation [here](https://github.com/visionmedia/supertest)).
-
-### Automation configuration
-
-We have some checks that runs automatically and ensures that we as a team are consistent in styling and code. To accomplish that we use a combination of prettier, eslint and husky to run tests. These will also be run on every PR that goes to the `develop` and `main` branches in our project. Have a look below for explanations on each of these tools and what they do.
-
-#### Prettier
-
-We use prettier to ensure that our code is formatted consistently. The `client` and `server` both have their own configuration files to allow for differences between the two if absolutely necessary.
-
-To run a check for code formatting use `npm run prettier`. To autofix issues run `npm run prettier:fix`.
-
-#### ESlint
-
-We use ESlint to ensure that our code is styled consistently. The `client` and `server` both have their own configuration files to allow for differences between the two if absolutely necessary. We extend from the base airbnb styles mentioned [here](https://github.com/airbnb/javascript) and write a comment for any changes.
-
-To run a check for code style use `npm run lint`. To try to autofix issues run `npm run lint:fix`.
-
-If there is a lint error that you feel is unjustified you can discuss with the team if it should be added to the ignore rules (see eslint documentation for that [here](https://eslint.org/docs/user-guide/configuring/rules)). If it is a one time exception to be made you can use disable comments, like so:
-
-```js
-/* eslint-disable no-console */
-
-console.log("bar");
-
-/* eslint-enable no-console */
+```
+client
+├── public
+└── src
+|   └── __tests__
+|   └── __testUtils__
+|   └── components
+|   └── hooks
+|   └── pages
+|       └── __tests__
+|       └── components
+|   └── util
+|   index.jsx
+cypress
+|   └── fixtures
+|   └── integration
+|   └── plugins
+|   └── support
+server
+└── src
+    └── __tests__
+    └── __testUtils__
+    └── controllers
+    └── db
+    └── models
+    └── routes
+    └── util
+    index.js
 ```
 
-Make sure you add a comment to explain why the exception is needed.
+### 2.1 Client structure
 
-#### Husky
+- `public` || public facing client code
+- `__tests__` || any `jest` tests for specific components will be in a `__tests__` folder on the same level
+- `__testUtils__` || any code that is only being used in the tests is put in the `__testUtils__` folder to separate that away from the rest of the code
+- `components` || all of our shared components that are used over multiple pages
+- `hooks` || all of our custom hooks
+- `pages` || the page components of our app, any routing will go between these components
+- `pages/components` || components used specifically on those pages
+- `util` || any utility functions that can be used anywhere on the client side
+- `index.jsx` || the start point of the client
 
-We use Husky to automatically run our lint/prettier checks as well as our tests before committing files. This will ensure that any code that is pushed is according to our code styles and is fully tested. You can run these tests yourself aswell by running:
+### 2.2 Cypress structure
 
-`npm run pre-commit`
+- `fixtures` || any data/files that `cypress` needs can be placed here
+- `integration` || all of our tests are in here, separated in folders based on the pages in our app
+- `plugins` || any plugins for our `cypress` configuration can be placed here
+- `support` || custom commands and other support files for `cypress` can be placed here
 
-Remember that there are commands to run autofixes for lint/prettier, have a look at the `package.json` to see what is available.
+### 2.3 Server structure
 
-If you are confident nothing is broken you can write `git commit --no-verify` to allow github to do the checks!
+- `__tests__` || any `jest` tests for the api endpoints as that is our testing strategy for the backend
+- `__testUtils__` || any code that is only being used in the tests is put in the `__testUtils__` folder to separate that away from the rest of the code
+- `controllers` || all of our controller functions that interact with the database
+- `db` || all of our configuration for the database
+- `models` || all of our `mongoose` models will be placed here
+- `routes` || code to match up the API with our controllers
+- `util` || any utility functions that can be used anywhere on the server side
+- `index.js` || the start point of the server
+
+## 3. Stack / external libraries
+
+The base stack of the app is a MERN stack (Mongoose, Express, React, Node). Next to that we make use of the following extras:
+
+### 3.1 Configuration libraries
+
+- `dotenv` || To load the .env variables into the process environment. See [docs](https://www.npmjs.com/package/dotenv)
+- `webpack` / `html-webpack-plugin` || To bundle our React app and create a static app to host. See [docs](https://webpack.js.org/)
+- `husky` || To run our tests and linter before committing. See [docs](https://typicode.github.io/husky/#/)
+- `eslint` || To check our code. We have different configurations for frontend and backend. You can check out the configuration in the `.eslintrc.(c)js` files in the respective `client` and `server` folders. See [docs](https://eslint.org/)
+- `prettier` || To automatically format our code. See [docs](https://prettier.io/)
+- `concurrently` || To run commands in parallel. See [docs](https://github.com/open-cli-tools/concurrently#readme)
+
+For more information on how these work together including the automatic deployment to heroku, have a look at our detailed [DEV](./DEV.md) file.
+
+### 3.2 Client-side libraries
+
+- `@testing-library/*` || We use React Testing Library to write all of our tests. See [docs](https://testing-library.com/docs/react-testing-library/intro/)
+- `jest` || To run our tests and coverage. See [docs](https://jestjs.io/)
+- `jest-fetch-mock` || To mock out the backend for our testing purposes. See [docs](https://github.com/jefflau/jest-fetch-mock#readme)
+- `prop-types` || To type-check our components. See [docs](https://github.com/facebook/prop-types)
+
+### 3.3 Server-side libraries
+
+- `nodemon` || To automatically restart the server when in development mode. See [docs](https://nodemon.io/)
+- `jest` || To run our tests and coverage. See [docs](https://jestjs.io/)
+- `supertest` || To more easily test our endpoints. See [docs](https://github.com/visionmedia/supertest#readme)
+- `mongodb-memory-server` || To mock out our database in our backend tests. See [docs](https://github.com/nodkz/mongodb-memory-server)
+- `cors` || To open up our API. See [docs](https://github.com/expressjs/cors#readme)
+- `mongoose` || To add schemas to our database. See [docs](https://mongoosejs.com/)
