@@ -9,7 +9,7 @@
     "test:coverage": "jest --coverage",
     "dev": "webpack serve",
     "build": "webpack --mode=production",
-    "setup": "npm install --dev",
+    "setup": "npm install --include=dev",
     "code-style-check": "npm run prettier && npm run lint",
     "pre-commit": "npm run code-style-check",
     "autofix": "npm run lint:fix && npm run prettier:fix",

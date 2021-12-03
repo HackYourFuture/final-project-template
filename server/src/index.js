@@ -6,6 +6,7 @@ dotenv.config();
 import app from "./app.js";
 import { logInfo, logError } from "./util/logging.js";
 import connectDB from "./db/connectDB.js";
+import testRouter from "./testRouter.js";
 
 // The environment should set the port
 const port = process.env.PORT;
@@ -41,6 +42,11 @@ if (process.env.NODE_ENV === "production") {
       new URL("../../client/dist/index.html", import.meta.url).pathname
     )
   );
+}
+
+/****** For cypress we want to provide an endpoint to seed our data ******/
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/test", testRouter);
 }
 
 // Start the server

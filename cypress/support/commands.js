@@ -28,6 +28,14 @@ Cypress.Commands.add("getByTestId", (id) => {
   return cy.get(`[data-testid="${id}"]`);
 });
 
+Cypress.Commands.add("getByElementId", (id) => {
+  return cy.get(`[data-elementid="${id}"]`);
+});
+
 Cypress.Commands.add("clickByTestId", (id, ...args) => {
   return cy.getByTestId(id).click(...args);
+});
+
+Cypress.Commands.add("requestFromDatabase", (url) => {
+  return cy.task("db:grabData", url);
 });

@@ -1,4 +1,5 @@
 {
   "testFiles": "**/*.spec.js",
-  "baseUrl": "http://localhost:8080"
+  "baseUrl": "http://localhost:8080",
+  "backendUrl": "http://localhost:5000"
 }
