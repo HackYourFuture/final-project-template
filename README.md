@@ -12,7 +12,8 @@ This is the final project for the HackYourFuture curriculum we did as a class us
 
 First, to setup all the directories run the following in the main directory:
 
-`npm run install`
+`npm install`
+
 `npm run setup`
 
 The first command will install `cypress` and some small libraries needed for running the rest of the commands. The second will go into the `client` and `server` directories and set those up to be ran.
