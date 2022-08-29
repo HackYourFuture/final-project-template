@@ -42,7 +42,7 @@ const useFetch = (route, onReceived) => {
     setError(null);
     setIsLoading(true);
 
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       // We add the /api subsection here to make it a single point of change if our configuration changes
       const url = `${process.env.BASE_SERVER_URL}/api${route}`;
 
@@ -72,12 +72,10 @@ const useFetch = (route, onReceived) => {
       setIsLoading(false);
     };
 
-    try {
-      fetchUsers();
-    } catch (error) {
+    fetchData().catch((error) => {
       setError(error);
       setIsLoading(false);
-    }
+    });
   };
 
   return { isLoading, error, performFetch, cancelFetch };
