@@ -141,3 +141,64 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Python (data engineering)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tooling caches
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# Data files and local databases often generated during exploration
+*.sqlite
+*.sqlite3
+
+# Java / Spring Boot
+*.class
+*.jar
+*.war
+*.ear
+
+# Build tools
+.gradle/
+target/
+out/
+build/
+
+# Spring Boot runtime artifacts
+*.pid
+*.pid.lock
+*.hprof
+
+# IDE metadata
+.idea/
+*.iml
+
+# Docker
+.docker/
+.buildx-cache/
