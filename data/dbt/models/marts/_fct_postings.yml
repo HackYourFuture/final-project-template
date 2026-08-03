@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: fct_postings
+    description: >
+      One row per posting. This is the published contract consumed by the
+      backend API. Adding a column is safe; renaming or removing one breaks
+      the backend and must be agreed with them first.
+    columns:
+      - name: posting_id
+        description: Stable unique identifier. Use this as the API resource id.
+        tests: [unique, not_null]
+      - name: title
+        description: Job title as advertised.
+        tests: [not_null]
+      - name: company_name
+        description: Hiring company name.
+        tests: [not_null]
+      - name: location
+        description: Free-text location. Null when the posting gives none.
+      - name: is_remote
+        description: True when the posting is advertised as remote.
+        tests: [not_null]
+      - name: tags
+        description: JSON array of tags from the source. Query with Postgres JSONB operators.
+      - name: posted_at
+        description: Timestamp the posting was published at the source.
+        tests: [not_null]
+      - name: posted_date
+        description: Date part of posted_at. Group by this for daily counts.
+        tests: [not_null]
+      - name: ingested_at
+        description: When your pipeline last saw this record. Use it to show data freshness in the UI.
+        tests: [not_null]
