@@ -1,3 +1,8 @@
 # Python packages available to your DAGs.
+# The Astro runtime already ships Airflow itself.
 dbt-core>=1.8.0
 dbt-postgres>=1.8.0
+psycopg[binary]>=3.2.0
+pydantic>=2.9.0
+requests>=2.32.0
+python-dotenv>=1.0.0

@@ -219,7 +219,9 @@ dbt_packages/
 logs/
 
 # --- Airflow (Astro) ---
-.astro/
+# .astro/config.yaml must be committed: without it the folder is not an Astro
+# project and `astro dev start` refuses to run.
+.astro/config.yaml.lock
 airflow_settings.yaml
 
 # --- Java / Spring Boot (backend track) ---

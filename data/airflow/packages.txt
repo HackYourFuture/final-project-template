@@ -1,0 +1,2 @@
+# OS-level packages installed into the Airflow image (one per line).
+# Python packages belong in requirements.txt instead.

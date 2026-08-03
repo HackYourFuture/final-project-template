@@ -1,0 +1,23 @@
+# Local development only. Astro merges this into its own compose stack.
+#
+# The pipeline code and the dbt project live one level up, next to this folder,
+# so that there is exactly one copy of each. These bind mounts make them visible
+# inside the Airflow containers without duplicating them here.
+#
+# When you deploy, bake the same paths into the image with COPY instead.
+x-mounts: &mounts
+  volumes:
+    - ../src:/usr/local/airflow/src:ro
+    - ../dbt:/usr/local/airflow/include/dbt:rw
+  environment:
+    PYTHONPATH: /usr/local/airflow
+
+services:
+  scheduler:
+    <<: *mounts
+  dag-processor:
+    <<: *mounts
+  api-server:
+    <<: *mounts
+  triggerer:
+    <<: *mounts
