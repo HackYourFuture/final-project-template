@@ -11,7 +11,7 @@ rather than into setup.
 ```bash
 cd data
 cp .env.example .env
-docker compose up -d postgres   # local Postgres on :5432
+docker compose up -d db   # local Postgres on :5432
 
 uv venv && uv pip install -e ".[dbt]"
 uv run python -m src.pipeline   # fetch, validate, store

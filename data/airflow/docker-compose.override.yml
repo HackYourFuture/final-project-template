@@ -1,23 +1,38 @@
 # Local development only. Astro merges this into its own compose stack.
 #
-# The pipeline code and the dbt project live one level up, next to this folder,
-# so that there is exactly one copy of each. These bind mounts make them visible
-# inside the Airflow containers without duplicating them here.
+# Two things happen here:
 #
-# When you deploy, bake the same paths into the image with COPY instead.
-x-mounts: &mounts
+# 1. The pipeline code and the dbt project live one level up, next to this
+#    folder, so there is exactly one copy of each. The bind mounts make them
+#    visible inside the Airflow containers rather than duplicating them.
+#
+# 2. The containers join the "finalproject" network created by
+#    ../docker-compose.yml, so they reach the database as "db" on port
+#    5432. Going through host.docker.internal instead would break on any
+#    machine that already runs something on port 5432.
+#
+# Start the database first:  (cd .. && docker compose up -d db)
+# When you deploy, bake these paths into the image with COPY.
+x-local: &local
   volumes:
     - ../src:/usr/local/airflow/src:ro
     - ../dbt:/usr/local/airflow/include/dbt:rw
   environment:
     PYTHONPATH: /usr/local/airflow
+  networks:
+    - default
+    - finalproject
 
 services:
   scheduler:
-    <<: *mounts
+    <<: *local
   dag-processor:
-    <<: *mounts
+    <<: *local
   api-server:
-    <<: *mounts
+    <<: *local
   triggerer:
-    <<: *mounts
+    <<: *local
+
+networks:
+  finalproject:
+    external: true

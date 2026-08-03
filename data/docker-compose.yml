@@ -3,18 +3,22 @@
 # Two ways to run the pipeline, and the difference matters:
 #
 #   From your machine (fast to iterate, uses POSTGRES_HOST=localhost):
-#     docker compose up -d postgres
+#     docker compose up -d db
 #     uv run python -m src.pipeline
 #     cd dbt && uv run dbt build --profiles-dir .
 #
-#   In the container, the way Azure will run it (uses POSTGRES_HOST=postgres):
+#   In the container, the way Azure will run it (uses POSTGRES_HOST=db):
 #     docker compose run --rm pipeline
+#
+# The service is called "db" rather than "postgres" on purpose: the Airflow
+# stack ships its own service named postgres, and a name clash there sends
+# your DAG to Airflow's metadata database instead of your data.
 #
 # Inside a container, "localhost" is the container itself, not your machine.
 # That is why the pipeline service overrides POSTGRES_HOST below instead of
 # taking it from .env.
 services:
-  postgres:
+  db:
     image: postgres:16
     environment:
       POSTGRES_DB: finalproject
@@ -35,10 +39,17 @@ services:
     env_file: .env
     environment:
       # Reach Postgres by its service name on the compose network.
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: db
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
 
 volumes:
   pgdata:
+
+# A fixed network name so the Airflow stack, which is a separate compose
+# project, can attach to it. Without a fixed name Docker derives one from the
+# folder name, which differs per checkout.
+networks:
+  default:
+    name: finalproject
