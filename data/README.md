@@ -11,13 +11,24 @@ rather than into setup.
 ```bash
 cd data
 cp .env.example .env
-docker compose up -d          # local Postgres on :5432
+docker compose up -d postgres   # local Postgres on :5432
 
 uv venv && uv pip install -e ".[dbt]"
-uv run python -m src.pipeline # fetch, validate, store
+uv run python -m src.pipeline   # fetch, validate, store
 
 cd dbt && uv run dbt build --profiles-dir .
 ```
+
+To run the pipeline the way Azure will run it, in the container:
+
+```bash
+docker compose run --rm pipeline
+```
+
+> Inside a container, `localhost` is the container itself, not your machine.
+> That is why the `pipeline` service overrides `POSTGRES_HOST` to `postgres`,
+> the service name on the compose network. Plain
+> `docker run --env-file .env` cannot reach your local database.
 
 You should see around 175 rows land in `raw.postings`, then `stg_postings` and
 `fct_postings` build with all tests passing. Run the pipeline twice: the row

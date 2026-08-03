@@ -1,11 +1,18 @@
-# Local development stack: Postgres only.
+# Local development stack.
 #
-# The pipeline and dbt run on your machine against this database, so you can
-# build the whole flow before touching Azure.
+# Two ways to run the pipeline, and the difference matters:
 #
-#   docker compose up -d
-#   uv run python -m src.pipeline
-#   cd dbt && uv run dbt build
+#   From your machine (fast to iterate, uses POSTGRES_HOST=localhost):
+#     docker compose up -d postgres
+#     uv run python -m src.pipeline
+#     cd dbt && uv run dbt build --profiles-dir .
+#
+#   In the container, the way Azure will run it (uses POSTGRES_HOST=postgres):
+#     docker compose run --rm pipeline
+#
+# Inside a container, "localhost" is the container itself, not your machine.
+# That is why the pipeline service overrides POSTGRES_HOST below instead of
+# taking it from .env.
 services:
   postgres:
     image: postgres:16
@@ -22,6 +29,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  pipeline:
+    build: .
+    env_file: .env
+    environment:
+      # Reach Postgres by its service name on the compose network.
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   pgdata:

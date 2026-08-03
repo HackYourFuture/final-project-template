@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from airflow.decorators import dag, task
-from airflow.operators.bash import BashOperator
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.sdk import dag, task
 
 DEFAULT_ARGS = {
     "owner": "data-team",
