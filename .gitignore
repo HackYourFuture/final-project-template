@@ -202,3 +202,29 @@ build/
 # Docker
 .docker/
 .buildx-cache/
+
+# --- Python (data track) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# --- dbt ---
+target/
+dbt_packages/
+logs/
+
+# --- Airflow (Astro) ---
+.astro/
+airflow_settings.yaml
+
+# --- Java / Spring Boot (backend track) ---
+*.class
+build/
+.gradle/
+.mvn/
+.user.yml
