@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    # e.g: jdbc:postgresql://server:5432/mydb
+    url: '${DB_URL}'
+    username: '${DB_USER}'
+    password: '${DB_PASSWORD}'
+logging:
+  level:
+    root: INFO
