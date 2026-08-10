@@ -7,7 +7,7 @@ tells you anything useful.
 Replace this model with one that matches your team's data source.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,9 +26,14 @@ class Posting(BaseModel):
     @field_validator("created_at", mode="before")
     @classmethod
     def _epoch_to_datetime(cls, value: object) -> object:
-        """The source sends a Unix timestamp; store a real datetime."""
+        """The source sends a Unix timestamp; store a real datetime in UTC.
+
+        Without the timezone, Python reads the timestamp in whatever zone the
+        machine happens to be in, so your laptop and the container would
+        disagree about what `posted_at` means.
+        """
         if isinstance(value, int):
-            return datetime.fromtimestamp(value)
+            return datetime.fromtimestamp(value, tz=UTC)
         return value
 
     model_config = {"populate_by_name": True}
