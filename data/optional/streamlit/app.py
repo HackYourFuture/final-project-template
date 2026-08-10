@@ -3,7 +3,10 @@
 This is for your team, not for end users. The product UI is the frontend
 trainee's job. This page answers one question: is the pipeline healthy?
 
-Run:  uv run streamlit run optional/streamlit/app.py
+streamlit and pandas are not installed by default. Install the extra first:
+
+    uv sync --extra dashboard
+    uv run streamlit run optional/streamlit/app.py
 """
 
 import os
