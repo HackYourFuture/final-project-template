@@ -1,0 +1,40 @@
+# Maven build output
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Test output
+*.log
+
+# Development configs
+application-dev.yaml
+
+# Project management
+.junie/
+README.md
+
+# Docker
+Dockerfile
+.dockerignore

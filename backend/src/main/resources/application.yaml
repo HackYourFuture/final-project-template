@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: hyf-project-backend
+server:
+  port: 8080
+
+# API Docs
+springdoc:
+  api-docs:
+    path: /api/docs/openapi.yaml
+scalar:
+  enabled: true
+  path: /api/docs
+
