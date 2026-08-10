@@ -19,10 +19,14 @@ Azure. There is no key to put in `.env` and none to leak.
 
 ## Deploy it
 
+Deploy into `rg-hyf-data`, the same resource group your Week 6 and Week 7
+container jobs ran in. It is the one place you hold the rights this template
+needs, and the second command below fails anywhere else.
+
 ```bash
 cd data/infra
 az deployment group create \
-  --resource-group <your-rg> \
+  --resource-group rg-hyf-data \
   --template-file main.bicep \
   --parameters teamName=teama
 ```
@@ -36,10 +40,14 @@ identity so it can write:
 
 ```bash
 az deployment group create \
-  --resource-group <your-rg> \
+  --resource-group rg-hyf-data \
   --template-file main.bicep \
   --parameters teamName=teama ingestPrincipalId=<the job's principal id>
 ```
+
+That second deploy creates a role assignment, which needs a permission you have
+in `rg-hyf-data` and nowhere else. If you see `AuthorizationFailed`, check the
+resource group before you go looking for a mistake in the template.
 
 ## How Databricks reads these files
 
