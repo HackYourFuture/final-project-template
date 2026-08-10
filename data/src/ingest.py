@@ -27,7 +27,12 @@ def fetch_raw(url: str) -> list[dict]:
     response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     payload = response.json()
-    records = payload.get("data", payload)
+    # Some sources wrap their rows in {"data": [...]}, others return the list
+    # itself. Anything else is a shape you have not seen before, and guessing
+    # at it here would surface three functions later as a confusing error.
+    records = payload.get("data", payload) if isinstance(payload, dict) else payload
+    if not isinstance(records, list):
+        raise TypeError(f"Expected a list of records, got {type(records).__name__}")
     logger.info("Received %d record(s)", len(records))
     return records
 
