@@ -29,14 +29,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def read_mart(http_path: str, host: str, token: str, table: str) -> list[dict]:
+def read_mart(host: str, http_path: str, client_id: str, client_secret: str, table: str) -> list[dict]:
     """Read every row of a published mart from Databricks.
 
     Args:
         table: fully qualified, e.g. team_a.analytics.fct_postings
 
-    TODO: implement with databricks.sql.connect. Return plain dicts, so the
-    write side does not need to know where the rows came from.
+    TODO: implement with databricks.sql.connect, using your team's client id
+    and secret (OAuth), not a personal token. Return plain dicts, so the write
+    side does not need to know where the rows came from.
     """
     raise NotImplementedError
 

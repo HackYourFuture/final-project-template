@@ -15,12 +15,15 @@ This file is a skeleton. Each task says what it has to do; you write the body.
 
 Set these Airflow variables before the first run:
     AZURE_RESOURCE_GROUP, ACA_JOB_NAME,
-    DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_TOKEN,
+    DATABRICKS_HOST, DATABRICKS_HTTP_PATH,
+    DATABRICKS_CLIENT_ID, DATABRICKS_CLIENT_SECRET,
     DATABRICKS_CATALOG, DBT_SCHEMA,
     BACKEND_PG_HOST, BACKEND_PG_DB, BACKEND_PG_USER, BACKEND_PG_PASSWORD
 
-Read the secret ones from Key Vault or an Airflow connection. Never type a
-token into this file: it is committed, and everyone on your team can read it.
+Read the secret ones from Key Vault. Your VM has an identity that is allowed to
+read your team's secrets and nobody else's, so the DAG fetches them at run time
+and nothing is stored on the VM. Never type a secret into this file: it is
+committed, and everyone on your team can read it.
 """
 
 from __future__ import annotations
