@@ -9,6 +9,9 @@ Run locally:
 
 The wiring below is done. The pieces it calls are not: `land_raw_json` in
 storage.py raises NotImplementedError until you write it.
+
+Authentication is your Azure login locally (`az login`) and the Container Apps
+job's managed identity in Azure. There is no key to set.
 """
 
 import logging
@@ -17,7 +20,7 @@ from datetime import date
 
 from .config import load_config
 from .ingest import fetch_raw, parse_records
-from .storage import land_raw_json, landing_file_name
+from .storage import blob_name, land_raw_json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,10 +46,9 @@ def run(run_date: str | None = None) -> int:
         raise RuntimeError("Every record failed validation: check the source shape")
 
     landed = land_raw_json(
-        host=config.databricks_host,
-        token=config.databricks_token,
-        volume_path=config.landing_path,
-        file_name=landing_file_name(config.source_name, run_date),
+        account=config.storage_account,
+        container=config.storage_container,
+        blob_path=blob_name(config.source_name, run_date),
         records=[record.model_dump(mode="json") for record in parsed],
     )
 

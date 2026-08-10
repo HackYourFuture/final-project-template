@@ -15,7 +15,9 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir \
         "requests>=2.32.0" \
         "pydantic>=2.9.0" \
-        "python-dotenv>=1.0.0"
+        "python-dotenv>=1.0.0" \
+        "azure-identity>=1.19.0" \
+        "azure-storage-blob>=12.23.0"
 
 COPY src/ ./src/
 

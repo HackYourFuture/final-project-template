@@ -32,22 +32,16 @@ def _required(name: str) -> str:
 
 @dataclass(frozen=True)
 class Config:
-    """Settings the ingestion job needs."""
+    """Settings the ingestion job needs.
+
+    No credential appears here. Storage access uses DefaultAzureCredential,
+    which reads your `az login` locally and the managed identity in Azure.
+    """
 
     source_api_url: str
     source_name: str
-    databricks_host: str
-    databricks_token: str
-    catalog: str
-
-    @property
-    def landing_path(self) -> str:
-        """Where raw files land, inside your team's volume.
-
-        The volume already exists: it was created with your catalog. You write
-        into it, and Databricks reads from it.
-        """
-        return f"/Volumes/{self.catalog}/landing/raw/{self.source_name}"
+    storage_account: str
+    storage_container: str
 
 
 def load_config() -> Config:
@@ -59,7 +53,6 @@ def load_config() -> Config:
     return Config(
         source_api_url=_required("SOURCE_API_URL"),
         source_name=os.getenv("SOURCE_NAME", "source"),
-        databricks_host=_required("DATABRICKS_HOST").rstrip("/"),
-        databricks_token=_required("DATABRICKS_TOKEN"),
-        catalog=_required("DATABRICKS_CATALOG"),
+        storage_account=_required("STORAGE_ACCOUNT"),
+        storage_container=os.getenv("STORAGE_CONTAINER", "raw"),
     )

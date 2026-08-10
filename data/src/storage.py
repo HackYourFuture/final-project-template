@@ -1,4 +1,4 @@
-"""Land raw records as files in your team's Databricks volume.
+"""Land raw records as files in your team's ADLS container.
 
 This is the boundary between "getting data in" and "shaping data". The
 ingestion job only lands files. Everything after that is dbt's job, which is
@@ -9,13 +9,26 @@ a column changes shape three weeks from now, you can re-read the file and find
 out when it changed. A row that was already parsed into a table cannot tell you
 that.
 
-YOU IMPLEMENT THIS FILE. The signatures and the docstrings say what each
-function has to do. The Databricks Files API is the simplest way in:
+Why ADLS and not a database: your storage account holds the raw layer, and
+Databricks reads it through a volume your teachers pointed at this container.
+Nothing here needs a Databricks token. The container authenticates as itself.
 
-    PUT {host}/api/2.0/fs/files{path}?overwrite=true
-    Authorization: Bearer {token}
+YOU IMPLEMENT THIS FILE.
 
-Docs: https://docs.databricks.com/api/workspace/files/upload
+Authentication is `DefaultAzureCredential`, which is the whole point of the
+setup: locally it uses your `az login`, and in Azure it uses the Container Apps
+job's managed identity. There is no key, no connection string, and nothing to
+put in .env.
+
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobServiceClient
+
+    client = BlobServiceClient(
+        f"https://{account}.blob.core.windows.net",
+        credential=DefaultAzureCredential(),
+    )
+
+Docs: https://learn.microsoft.com/azure/storage/blobs/storage-quickstart-blobs-python
 """
 
 import logging
@@ -23,39 +36,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def landing_file_name(source_name: str, run_date: str) -> str:
-    """Return the file name to write for one run.
+def blob_name(source_name: str, run_date: str) -> str:
+    """Return the blob path to write for one run.
 
-    Put the date in the path. One file per run per day means a re-run overwrites
-    its own file instead of doubling your data, and you can still see every day
-    that ever ran.
+    Put the date in the path. One file per run per day means a re-run
+    overwrites its own file instead of doubling your data, and you can still
+    see every day that ever ran.
 
-    TODO: decide your naming. Something like `2026-08-10.json` under a folder
-    per source is enough. Write down why you chose it in the README.
+    TODO: decide your layout. Something like `postings/2026-08-10.json` is
+    enough. Write down why you chose it in the README, because dbt reads
+    whatever you choose here.
     """
     raise NotImplementedError
 
 
 def land_raw_json(
-    host: str,
-    token: str,
-    volume_path: str,
-    file_name: str,
+    account: str,
+    container: str,
+    blob_path: str,
     records: list[dict],
 ) -> int:
-    """Upload records as one JSON file into the volume, return how many.
+    """Upload records as one JSON file, and return how many were written.
 
     Args:
-        host: your workspace URL, e.g. https://adb-....azuredatabricks.net
-        token: a Databricks token with write access to your catalog
-        volume_path: /Volumes/<catalog>/landing/raw/<source>
-        file_name: what landing_file_name returned
+        account: storage account name, e.g. stteamaa1b2c3d4
+        container: the container raw files land in, normally `raw`
+        blob_path: what blob_name returned
         records: the parsed records to write
 
-    Raise on a non-2xx response. A silent failure here is the worst kind: dbt
-    then builds happily on yesterday's file and nobody notices for a week.
+    Overwrite an existing blob rather than failing: Airflow re-runs tasks, and
+    a re-run of the same day must replace that day's file.
 
-    TODO: implement with `requests.put`. Remember `overwrite=true`, or a re-run
-    fails instead of replacing the file.
+    Let failures raise. A silent failure here is the worst kind: dbt then
+    builds happily on yesterday's file and nobody notices for a week.
+
+    TODO: implement with BlobServiceClient, then check the file really is in
+    the container before you move on. The portal shows it under
+    Storage account > Containers > raw.
     """
     raise NotImplementedError

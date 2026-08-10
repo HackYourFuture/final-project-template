@@ -10,7 +10,8 @@ with a docstring saying what each one has to do.
 ```mermaid
 flowchart LR
     API["Source API"] --> ACA["Container Apps job<br/>fetch and validate"]
-    ACA --> VOL["Databricks volume<br/>raw JSON files"]
+    ACA --> ADLS[("ADLS<br/>raw JSON files")]
+    ADLS --> VOL["Volume in your catalog"]
     VOL --> DBT["dbt on Databricks<br/>staging and marts"]
     DBT --> PG[("Backend Postgres")]
     PG --> BE["backend/"]
@@ -20,8 +21,12 @@ flowchart LR
 ```
 
 Every team runs this shape: ingestion in a container, raw files in your team's
-Databricks volume, dbt building models in your team's catalog, and Airflow
+ADLS storage account, dbt building models in your team's catalog, and Airflow
 publishing the finished mart into the database the backend reads.
+
+Your catalog has a volume pointing at that storage account, so the same files
+are reachable as `/Volumes/<your catalog>/landing/raw/`. Your dbt models read
+the volume path and never mention the storage account.
 
 ## What you get, and what you write
 
@@ -30,7 +35,7 @@ publishing the finished mart into the database the backend reads.
 | `src/config.py` | **Done.** Reads settings from the environment and fails loudly when one is missing |
 | `src/models.py` | **Example.** A Pydantic model for job postings. Replace it with your source's shape |
 | `src/ingest.py` | **Done.** Calls the API, validates, counts rejects |
-| `src/storage.py` | **You write it.** Land raw JSON in your Databricks volume |
+| `src/storage.py` | **You write it.** Land raw JSON in your ADLS container |
 | `src/sync.py` | **You write it.** Publish a mart into the backend's database |
 | `src/pipeline.py` | **Done.** Wires fetch, validate and land together |
 | `dbt/models/staging/` | **Skeleton.** Reads the volume with `read_files`. Rename to your domain |
@@ -38,21 +43,26 @@ publishing the finished mart into the database the backend reads.
 | `dbt/tests/` | **Example.** Two custom tests, including a zero-row check |
 | `airflow/dags/pipeline_dag.py` | **Skeleton.** Three tasks wired in order, bodies empty |
 | `Dockerfile` | **Done.** The image you push to Azure Container Registry |
-| `optional/` | Bicep and Streamlit modules. Neither is required |
+| `infra/` | **Done.** Bicep for the storage account, container and lifecycle rule |
+| `optional/` | A Streamlit operations dashboard. Not required |
 
 ## Getting started
 
 ```bash
-cd data
-cp .env.example .env        # then fill in your team's catalog and token
+cd data/infra                    # create your storage account first
+az deployment group create --resource-group <your-rg> \
+  --template-file main.bicep --parameters teamName=teama
+
+cd ..
+cp .env.example .env             # then fill in STORAGE_ACCOUNT and your catalog
 uv venv && uv pip install -e ".[dbt,sync]"
 
-docker compose up -d backend-db   # stands in for the backend database
+docker compose up -d backend-db  # stands in for the backend database
 ```
 
-Your first goal is one file in the volume. Implement `land_raw_json`, run
-`uv run python -m src.pipeline`, and check the file exists in Databricks under
-`/Volumes/<your catalog>/landing/raw/`. Everything else builds on that.
+Your first goal is one file in the container. Implement `land_raw_json`, run
+`uv run python -m src.pipeline`, and check the file appears under
+Storage account > Containers > raw. Everything else builds on that.
 
 Then point `landing_path` in `dbt/dbt_project.yml` at your volume and run
 `cd dbt && uv run dbt build`. When staging reads your own file, you have an end
