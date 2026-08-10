@@ -10,8 +10,7 @@ with a docstring saying what each one has to do.
 ```mermaid
 flowchart LR
     API["Source API"] --> ACA["Container Apps job<br/>fetch and validate"]
-    ACA --> ADLS[("ADLS<br/>raw JSON files")]
-    ADLS --> VOL["Volume in your catalog"]
+    ACA --> VOL[("Landing volume<br/>raw JSON files")]
     VOL --> DBT["dbt on Databricks<br/>staging and marts"]
     DBT --> PG[("Backend Postgres")]
     PG --> BE["backend/"]
@@ -21,12 +20,12 @@ flowchart LR
 ```
 
 Every team runs this shape: ingestion in a container, raw files in your team's
-ADLS storage account, dbt building models in your team's catalog, and Airflow
+landing volume, dbt building models in your team's catalog, and Airflow
 publishing the finished mart into the database the backend reads.
 
-Your catalog has a volume pointing at that storage account, so the same files
-are reachable as `/Volumes/<your catalog>/landing/raw/`. Your dbt models read
-the volume path and never mention the storage account.
+Raw files go to `/Volumes/<your catalog>/landing/raw/`. The volume already sits
+inside your catalog, so the permissions that protect your tables protect your
+raw files too, and there is no separate storage account to create or secure.
 
 ## What you get, and what you write
 
@@ -35,7 +34,7 @@ the volume path and never mention the storage account.
 | `src/config.py` | **Done.** Reads settings from the environment and fails loudly when one is missing |
 | `src/models.py` | **Example.** A Pydantic model for job postings. Replace it with your source's shape |
 | `src/ingest.py` | **Done.** Calls the API, validates, counts rejects |
-| `src/storage.py` | **You write it.** Land raw JSON in your ADLS container |
+| `src/storage.py` | **You write it.** Land raw JSON in your team's volume |
 | `src/sync.py` | **You write it.** Publish a mart into the backend's database |
 | `src/pipeline.py` | **Done.** Wires fetch, validate and land together |
 | `dbt/models/staging/` | **Skeleton.** Reads the volume with `read_files`. Rename to your domain |
@@ -43,26 +42,36 @@ the volume path and never mention the storage account.
 | `dbt/tests/` | **Example.** Two custom tests, including a zero-row check |
 | `airflow/dags/pipeline_dag.py` | **Skeleton.** Three tasks wired in order, bodies empty |
 | `Dockerfile` | **Done.** The image you push to Azure Container Registry |
-| `infra/` | **Done.** Bicep for the storage account, container and lifecycle rule |
 | `optional/` | A Streamlit operations dashboard. Not required |
 
 ## Getting started
 
 ```bash
-cd data/infra                    # create your storage account first
-az deployment group create --resource-group <your-rg> \
-  --template-file main.bicep --parameters teamName=teama
-
-cd ..
-cp .env.example .env             # then fill in STORAGE_ACCOUNT and your catalog
+cd data
+cp .env.example .env             # then fill in your catalog and team credentials
 uv venv && uv pip install -e ".[dbt,sync]"
 
 docker compose up -d backend-db  # stands in for the backend database
 ```
 
-Your first goal is one file in the container. Implement `land_raw_json`, run
-`uv run python -m src.pipeline`, and check the file appears under
-Storage account > Containers > raw. Everything else builds on that.
+Your team's Databricks client id and secret live in Key Vault. Read them with
+your own Azure login:
+
+```bash
+az keyvault secret show --vault-name kv-hyf-data \
+  --name fp-databricks-client-id-team-a --query value -o tsv
+```
+
+Your first goal is one file in the volume. Implement `get_token`,
+`volume_path` and `land_raw_json`, run `uv run python -m src.pipeline`, then
+check it landed:
+
+```sql
+SELECT count(*) FROM read_files('/Volumes/team_a/landing/raw/postings',
+                                format => 'json');
+```
+
+Everything else builds on that.
 
 Then point `landing_path` in `dbt/dbt_project.yml` at your volume and run
 `cd dbt && uv run dbt build`. When staging reads your own file, you have an end

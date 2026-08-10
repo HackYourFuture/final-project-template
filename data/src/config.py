@@ -34,14 +34,15 @@ def _required(name: str) -> str:
 class Config:
     """Settings the ingestion job needs.
 
-    No credential appears here. Storage access uses DefaultAzureCredential,
-    which reads your `az login` locally and the managed identity in Azure.
+    The client secret is not a field here. It is fetched from Key Vault at
+    run time by the identity of whatever is running: your `az login` locally,
+    the Container Apps job's managed identity in Azure.
     """
 
     source_api_url: str
     source_name: str
-    storage_account: str
-    storage_container: str
+    databricks_host: str
+    databricks_catalog: str
 
 
 def load_config() -> Config:
@@ -53,6 +54,6 @@ def load_config() -> Config:
     return Config(
         source_api_url=_required("SOURCE_API_URL"),
         source_name=os.getenv("SOURCE_NAME", "source"),
-        storage_account=_required("STORAGE_ACCOUNT"),
-        storage_container=os.getenv("STORAGE_CONTAINER", "raw"),
+        databricks_host=_required("DATABRICKS_HOST").replace("https://", ""),
+        databricks_catalog=_required("DATABRICKS_CATALOG"),
     )

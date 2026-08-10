@@ -8,7 +8,6 @@ dependencies = [
     "pydantic>=2.9.0",
     "python-dotenv>=1.0.0",
     "azure-identity>=1.19.0",
-    "azure-storage-blob>=12.23.0",
 ]
 
 [project.optional-dependencies]

@@ -10,17 +10,19 @@ Run locally:
 The wiring below is done. The pieces it calls are not: `land_raw_json` in
 storage.py raises NotImplementedError until you write it.
 
-Authentication is your Azure login locally (`az login`) and the Container Apps
-job's managed identity in Azure. There is no key to set.
+Your team's Databricks client id and secret come from Key Vault. Read them
+with the identity of whatever is running this: your `az login` locally, the
+Container Apps job's managed identity in Azure. Never put them in the image.
 """
 
 import logging
+import os
 import sys
 from datetime import date
 
 from .config import load_config
 from .ingest import fetch_raw, parse_records
-from .storage import blob_name, land_raw_json
+from .storage import get_token, land_raw_json, volume_path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,13 +44,22 @@ def run(run_date: str | None = None) -> int:
 
     records = fetch_raw(config.source_api_url)
     parsed, rejected = parse_records(records)
-    if rejected and not parsed:
-        raise RuntimeError("Every record failed validation: check the source shape")
+    # An empty batch is a failed extraction, not a quiet success. Landing zero
+    # rows leaves yesterday's mart in place and every test still passing, so
+    # nobody finds out for a week.
+    if not parsed:
+        raise RuntimeError(
+            f"No valid records: {len(records)} received, {rejected} rejected"
+        )
 
     landed = land_raw_json(
-        account=config.storage_account,
-        container=config.storage_container,
-        blob_path=blob_name(config.source_name, run_date),
+        host=config.databricks_host,
+        token=get_token(
+            tenant_id=os.environ["AZURE_TENANT_ID"],
+            client_id=os.environ["DATABRICKS_CLIENT_ID"],
+            client_secret=os.environ["DATABRICKS_CLIENT_SECRET"],
+        ),
+        path=volume_path(config.databricks_catalog, config.source_name, run_date),
         records=[record.model_dump(mode="json") for record in parsed],
     )
 
