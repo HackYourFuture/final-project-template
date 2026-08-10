@@ -10,4 +10,5 @@ USER 1000
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
+ENV SPRING_PROFILES_DEFAULT=prod
 CMD ["java", "-jar", "app.jar"]
