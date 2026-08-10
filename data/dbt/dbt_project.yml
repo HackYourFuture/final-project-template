@@ -7,6 +7,12 @@ test-paths: ["tests"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 
+# The landing volume your ingestion job writes into. Override it per team:
+#   dbt build --vars '{landing_path: /Volumes/team_a/landing/raw/postings}'
+# or set it here once your team's catalog is fixed.
+vars:
+  landing_path: "/Volumes/CHANGE_ME/landing/raw/postings"
+
 clean-targets:
   - "target"
   - "dbt_packages"

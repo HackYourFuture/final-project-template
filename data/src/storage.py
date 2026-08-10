@@ -1,83 +1,61 @@
-"""Write validated records into Postgres.
+"""Land raw records as files in your team's Databricks volume.
 
-The pipeline owns the raw layer only. Everything downstream of `raw` is dbt's
-job, which keeps the boundary between "getting data in" and "shaping data"
-clear enough that two people can work on them at once.
+This is the boundary between "getting data in" and "shaping data". The
+ingestion job only lands files. Everything after that is dbt's job, which is
+what lets two people work on the two halves at the same time.
+
+Why files and not a table: a raw file is exactly what the source sent you. When
+a column changes shape three weeks from now, you can re-read the file and find
+out when it changed. A row that was already parsed into a table cannot tell you
+that.
+
+YOU IMPLEMENT THIS FILE. The signatures and the docstrings say what each
+function has to do. The Databricks Files API is the simplest way in:
+
+    PUT {host}/api/2.0/fs/files{path}?overwrite=true
+    Authorization: Bearer {token}
+
+Docs: https://docs.databricks.com/api/workspace/files/upload
 """
 
-import json
 import logging
-
-import psycopg
-
-from .models import Posting
 
 logger = logging.getLogger(__name__)
 
-CREATE_SCHEMA = "CREATE SCHEMA IF NOT EXISTS {schema}"
 
-CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS {schema}.postings (
-    slug          TEXT PRIMARY KEY,
-    title         TEXT NOT NULL,
-    company_name  TEXT NOT NULL,
-    location      TEXT,
-    remote        BOOLEAN NOT NULL DEFAULT FALSE,
-    tags          JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at    TIMESTAMP NOT NULL,
-    ingested_at   TIMESTAMP NOT NULL DEFAULT NOW()
-)
-"""
+def landing_file_name(source_name: str, run_date: str) -> str:
+    """Return the file name to write for one run.
 
-UPSERT = """
-INSERT INTO {schema}.postings
-    (slug, title, company_name, location, remote, tags, created_at)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
-ON CONFLICT (slug) DO UPDATE SET
-    title        = EXCLUDED.title,
-    company_name = EXCLUDED.company_name,
-    location     = EXCLUDED.location,
-    remote       = EXCLUDED.remote,
-    tags         = EXCLUDED.tags,
-    created_at   = EXCLUDED.created_at,
-    ingested_at  = NOW()
-"""
+    Put the date in the path. One file per run per day means a re-run overwrites
+    its own file instead of doubling your data, and you can still see every day
+    that ever ran.
 
-
-def ensure_schema(dsn: str, schema: str) -> None:
-    """Create the raw schema and table when they do not exist yet."""
-    with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-        cur.execute(CREATE_SCHEMA.format(schema=schema))
-        cur.execute(CREATE_TABLE.format(schema=schema))
-        conn.commit()
-    logger.info("Ensured %s.postings exists", schema)
-
-
-def write_postings(dsn: str, schema: str, postings: list[Posting]) -> int:
-    """Upsert postings and return how many rows were written.
-
-    Upserting rather than inserting makes the pipeline safe to re-run. Running
-    it twice on the same day must not double your row count, and Airflow will
-    re-run tasks whenever one fails.
+    TODO: decide your naming. Something like `2026-08-10.json` under a folder
+    per source is enough. Write down why you chose it in the README.
     """
-    if not postings:
-        logger.warning("Nothing to write")
-        return 0
+    raise NotImplementedError
 
-    rows = [
-        (
-            p.slug,
-            p.title,
-            p.company_name,
-            p.location,
-            p.remote,
-            json.dumps(p.tags),
-            p.created_at,
-        )
-        for p in postings
-    ]
-    with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-        cur.executemany(UPSERT.format(schema=schema), rows)
-        conn.commit()
-    logger.info("Wrote %d row(s) into %s.postings", len(rows), schema)
-    return len(rows)
+
+def land_raw_json(
+    host: str,
+    token: str,
+    volume_path: str,
+    file_name: str,
+    records: list[dict],
+) -> int:
+    """Upload records as one JSON file into the volume, return how many.
+
+    Args:
+        host: your workspace URL, e.g. https://adb-....azuredatabricks.net
+        token: a Databricks token with write access to your catalog
+        volume_path: /Volumes/<catalog>/landing/raw/<source>
+        file_name: what landing_file_name returned
+        records: the parsed records to write
+
+    Raise on a non-2xx response. A silent failure here is the worst kind: dbt
+    then builds happily on yesterday's file and nobody notices for a week.
+
+    TODO: implement with `requests.put`. Remember `overwrite=true`, or a re-run
+    fails instead of replacing the file.
+    """
+    raise NotImplementedError

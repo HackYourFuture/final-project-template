@@ -1,14 +1,18 @@
 # Every value comes from an environment variable, so this file holds no
 # secrets and is safe to commit. Set them in .env (see ../.env.example).
+#
+# catalog is your team's catalog: team_a, team_b or team_c. schema is the
+# schema dbt builds into. Give each teammate their own schema while you are
+# developing, so two people running dbt at the same time do not overwrite each
+# other's models.
 final_project:
   target: dev
   outputs:
     dev:
-      type: postgres
-      host: "{{ env_var('POSTGRES_HOST') }}"
-      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
-      dbname: "{{ env_var('POSTGRES_DB') }}"
-      user: "{{ env_var('POSTGRES_USER') }}"
-      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') | replace('https://', '') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      catalog: "{{ env_var('DATABRICKS_CATALOG') }}"
       schema: "{{ env_var('DBT_SCHEMA') }}"
       threads: 4

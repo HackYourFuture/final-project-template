@@ -1,12 +1,26 @@
 """Daily orchestration for the final project pipeline.
 
-Two tasks in sequence: ingest raw data, then let dbt shape it. Keeping them
-separate means a dbt failure does not force you to re-fetch from the API, and
-you can see at a glance which half broke.
+Three steps, in this order:
 
-Set these Airflow variables (or environment variables) before the first run:
-    SOURCE_API_URL, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
-    POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_SCHEMA_RAW, DBT_SCHEMA
+    1. ingest   Start the Container Apps job. It fetches the source and lands
+                raw files in your team's Databricks volume.
+    2. dbt      Build staging and marts in your catalog, and run the tests.
+    3. publish  Copy the published mart into the backend's Postgres database.
+
+Why three separate tasks rather than one script: when step 2 fails you re-run
+step 2, not the fetch. And step 3 must not run when step 2 fails, or you
+publish a mart that failed its own tests. Airflow gives you both for free.
+
+This file is a skeleton. Each task says what it has to do; you write the body.
+
+Set these Airflow variables before the first run:
+    AZURE_RESOURCE_GROUP, ACA_JOB_NAME,
+    DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_TOKEN,
+    DATABRICKS_CATALOG, DBT_SCHEMA,
+    BACKEND_PG_HOST, BACKEND_PG_DB, BACKEND_PG_USER, BACKEND_PG_PASSWORD
+
+Read the secret ones from Key Vault or an Airflow connection. Never type a
+token into this file: it is committed, and everyone on your team can read it.
 """
 
 from __future__ import annotations
@@ -25,7 +39,7 @@ DEFAULT_ARGS = {
 
 @dag(
     dag_id="final_project_pipeline",
-    description="Ingest source data, then build dbt models",
+    description="Ingest to the lakehouse, build dbt models, publish to the backend",
     start_date=datetime(2026, 1, 1),
     schedule="0 6 * * *",
     catchup=False,
@@ -34,18 +48,53 @@ DEFAULT_ARGS = {
 )
 def final_project_pipeline():
     @task
-    def ingest() -> int:
-        """Fetch, validate, and store raw records."""
-        from src.pipeline import run
+    def ingest(**context) -> str:
+        """Start the Container Apps job and wait for it to finish.
 
-        return run()
+        Pass the logical date through, so a re-run of an old day overwrites
+        that day's file instead of today's:
+            context["logical_date"].date().isoformat()
+
+        TODO: start the job, then poll its execution until it is Succeeded or
+        Failed. Raise on Failed. A task that starts a job and returns
+        immediately reports green while the job is still running, which makes
+        the dbt step build on data that is not there yet.
+
+        Two ways in, both fine:
+          - `az containerapp job start` in a BashOperator, then poll with
+            `az containerapp job execution show`
+          - the azure-mgmt-appcontainers SDK from Python
+        """
+        raise NotImplementedError
 
     dbt_build = BashOperator(
         task_id="dbt_build",
-        bash_command="cd /usr/local/airflow/include/dbt && dbt build --profiles-dir .",
+        # dbt runs through uvx on Python 3.11: the Airflow image ships a newer
+        # Python than stable dbt-core supports.
+        #
+        # TODO: point --project-dir at your dbt folder and pass your catalog in
+        # --vars, then check that `dbt build` fails the DAG when a test fails.
+        bash_command=(
+            "uvx --python 3.11 --from 'dbt-core==1.10.*' "
+            "--with 'dbt-databricks==1.10.*' "
+            "dbt build --project-dir /opt/airflow/include/dbt --profiles-dir /opt/airflow/include/dbt"
+        ),
     )
 
-    ingest() >> dbt_build
+    @task
+    def publish_to_backend() -> int:
+        """Copy the published mart into the backend's database.
+
+        Runs only after dbt succeeds, which is what the dependency below buys
+        you. Use src/sync.py, and return the row count so the log says how much
+        was published.
+
+        TODO: implement, then answer one question in your README: what does the
+        backend see while this task is halfway through?
+        """
+        raise NotImplementedError
+
+    ingest() >> dbt_build >> publish_to_backend()
 
 
 final_project_pipeline()

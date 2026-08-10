@@ -15,7 +15,6 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir \
         "requests>=2.32.0" \
         "pydantic>=2.9.0" \
-        "psycopg[binary]>=3.2.0" \
         "python-dotenv>=1.0.0"
 
 COPY src/ ./src/

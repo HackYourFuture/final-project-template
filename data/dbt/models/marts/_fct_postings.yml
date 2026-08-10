@@ -22,7 +22,7 @@ models:
         description: True when the posting is advertised as remote.
         tests: [not_null]
       - name: tags
-        description: JSON array of tags from the source. Query with Postgres JSONB operators.
+        description: Array of tags from the source. Becomes a JSON array once synced to the backend.
       - name: posted_at
         description: Timestamp the posting was published at the source.
         tests: [not_null]

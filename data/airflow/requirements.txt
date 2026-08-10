@@ -1,7 +1,9 @@
 # Python packages available to your DAGs.
-# The Astro runtime already ships Airflow itself.
-dbt-core>=1.8.0
-dbt-postgres>=1.8.0
+# The Airflow runtime already ships Airflow itself.
+#
+# dbt is deliberately absent: it runs through uvx on Python 3.11 from the DAG,
+# because the Airflow image ships a newer Python than stable dbt-core supports.
+databricks-sql-connector>=3.4.0
 psycopg[binary]>=3.2.0
 pydantic>=2.9.0
 requests>=2.32.0

@@ -7,5 +7,4 @@ pipeline running and wants to go further.
 | Folder | Adds | Data Track week |
 |---|---|---|
 | `bicep/` | Provision your Azure resources from code instead of clicking in the portal | 14 |
-| `databricks/` | Run transformations on Databricks instead of Postgres | 13 |
 | `streamlit/` | An operations dashboard showing pipeline health | 11 |
