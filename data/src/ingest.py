@@ -50,6 +50,10 @@ def parse_records(records: list[dict]) -> tuple[list[Posting], int]:
             parsed.append(Posting.model_validate(record))
         except ValidationError as exc:
             rejected += 1
-            logger.warning("Rejected record %s: %s", record.get("slug", "<no slug>"), exc.error_count())
+            # A JSON list can hold a scalar, and calling .get on one would
+            # raise here and lose the whole batch, which is the opposite of
+            # what this loop is for.
+            identifier = record.get("slug", "<no slug>") if isinstance(record, dict) else repr(record)[:40]
+            logger.warning("Rejected record %s: %s", identifier, exc.error_count())
     logger.info("Parsed %d record(s), rejected %d", len(parsed), rejected)
     return parsed, rejected

@@ -32,7 +32,13 @@ renamed as (
         nullif(trim(location), '')  as location,
         remote                      as is_remote,
         tags                        as tags,
-        created_at                  as posted_at,
+        -- The raw file holds exactly what the source sent, and Arbeitnow
+        -- sends Unix seconds. Converting here rather than during ingestion is
+        -- deliberate: the landed file stays a faithful copy, and the moment a
+        -- source changes its date format you can see it in this one line
+        -- instead of re-reading three weeks of files. If your source sends an
+        -- ISO string, cast it instead.
+        timestamp_seconds(created_at) as posted_at,
         source_file,
         ingested_at
     from source

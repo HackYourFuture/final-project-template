@@ -126,8 +126,12 @@ def final_project_pipeline():
         # 1.10.11 refuses anything from 1.10.10 up, so the pair stops resolving
         # the moment dbt-core ships a patch. If you bump one, bump both.
         #
-        # TODO: pass your catalog in --vars, then check that `dbt build` fails
-        # the DAG when a test fails.
+        # TODO: point dbt at your own landing zone and check that a failing
+        # test fails the DAG. The project's variable is `landing_path`, and it
+        # ships as /Volumes/CHANGE_ME/..., so a scheduled run reads a volume
+        # that does not exist until you change it. Either edit vars in
+        # dbt_project.yml once, or pass it here:
+        #   --vars '{landing_path: /Volumes/<catalog>/landing/raw/<source>}'
         bash_command=(
             "uvx --python 3.11 --from 'dbt-core==1.10.9' "
             "--with 'dbt-databricks==1.10.11' "

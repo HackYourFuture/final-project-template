@@ -117,21 +117,31 @@ SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/raw/postings',
                                 format => 'json');
 ```
 
-**6. Build the models.**
+**6. Point dbt at your landing zone, then build.**
+
+`dbt/dbt_project.yml` ships `landing_path: /Volumes/CHANGE_ME/...`. Change it to
+your own volume once, then:
 
 ```bash
-cd dbt && uv run dbt build
+cd dbt
+uv run --env-file ../.env dbt build
 ```
+
+`--env-file` matters: `dbt/profiles.yml` reads every value from the
+environment, and `uv run` does not pick up `.env` on its own, so without it dbt
+has no credentials and fails with an empty host.
 
 When staging reads your own file, you have an end to end path, and everything
 after that is shaping.
 
 ### Running the whole stack locally
 
+All three start from the repository root:
+
 ```bash
-(cd .. && cp .env.example .env && docker compose up -d db)   # the backend's database
-docker compose run --rm pipeline                             # ingestion, as Azure runs it
-cd data/airflow && cp .env.example .env && astro dev start   # Airflow
+cp .env.example .env && docker compose up -d db       # the backend's database
+docker compose run --rm pipeline                      # ingestion, as Azure runs it
+cd data/airflow && cp .env.example .env && astro dev start
 ```
 
 ## Making it yours

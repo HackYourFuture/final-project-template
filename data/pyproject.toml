@@ -17,7 +17,7 @@ sync = ["databricks-sql-connector>=3.4.0", "psycopg[binary]>=3.2.0"]
 # Pinned exactly: dbt-databricks 1.10.11 requires dbt-core <1.10.10, so an open
 # range resolves to a pair that pip and uv both reject. Bump the two together.
 dbt = ["dbt-core==1.10.9", "dbt-databricks==1.10.11"]
-dashboard = ["streamlit>=1.39.0", "pandas>=2.2.0"]
+dashboard = ["streamlit>=1.39.0", "pandas>=2.2.0", "psycopg[binary]>=3.2.0"]
 dev = ["pytest>=8.3.0", "ruff>=0.6.0"]
 
 [tool.ruff]
