@@ -1,19 +1,19 @@
-name: Build Backend Container Image
+name: Build Frontend Container Image
 
 on:
   push:
     branches: [main]
     paths:
-      - "backend/**"
-      - ".github/workflows/deploy-backend.yaml"
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yaml"
   pull_request:
     paths:
-      - "backend/**"
-      - ".github/workflows/deploy-backend.yaml"
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yaml"
 
 # Cancel previous runs on new pushes
 concurrency:
-  group: docker-build-backend-${{ github.ref }}
+  group: docker-build-frontend-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
@@ -44,19 +44,18 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/backend
+          images: ghcr.io/${{ github.repository_owner }}/frontend
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ env.VERSION }},enable={{is_default_branch}}
             type=sha,prefix=main-sha-,format=short,enable={{is_default_branch}}
 
-      # Push only on main branch, otherwise just build
       - name: Build and Push
         uses: docker/build-push-action@v7
         with:
-          context: ./backend
+          context: ./frontend
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,scope=backend,mode=max
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
