@@ -124,6 +124,7 @@ dist
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+.vscode
 
 # pnpm
 .pnpm-store
@@ -202,3 +203,7 @@ build/
 # Docker
 .docker/
 .buildx-cache/
+
+# System
+.DS_Store
+thumbs.db
