@@ -1,4 +1,5 @@
 package nl.hackyourfuture.project.backend.user;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

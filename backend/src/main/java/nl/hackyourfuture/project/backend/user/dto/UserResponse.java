@@ -1,7 +1,7 @@
 package nl.hackyourfuture.project.backend.user.dto;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import nl.hackyourfuture.project.backend.user.User;
-
 import java.util.UUID;
 
 @Schema(description = "A user account as returned by the API")
