@@ -1,6 +1,18 @@
 spring:
   application:
     name: hyf-project-backend
+  flyway:
+    placeholders:
+      # The role this application logs in as, and therefore the role that is
+      # granted read access to the data team's published marts in V2.
+      #
+      # Defaults to CURRENT_USER, the role running the migration, which is what
+      # makes this work with no configuration in tests and in local development
+      # where the application and the migration are the same login. Set
+      # APP_ROLE in any environment where they differ, so the grants land on
+      # the role that actually serves requests rather than on the one that
+      # happened to run the migration.
+      app_role: ${APP_ROLE:CURRENT_USER}
 server:
   port: 8080
 
@@ -11,4 +23,3 @@ springdoc:
 scalar:
   enabled: true
   path: /api/docs
-
