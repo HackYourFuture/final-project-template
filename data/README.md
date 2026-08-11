@@ -10,22 +10,32 @@ with a docstring saying what each one has to do.
 ```mermaid
 flowchart LR
     API["Source API"] --> ACA["Container Apps job<br/>fetch and validate"]
-    ACA --> VOL[("Landing volume<br/>raw JSON files")]
+    ACA --> VOL[("Landing zone<br/>raw JSON files")]
     VOL --> DBT["dbt on Databricks<br/>staging and marts"]
-    DBT --> PG[("Backend Postgres")]
+    DBT --> PG[("Backend Postgres<br/>analytics schema")]
     PG --> BE["backend/"]
+    BE -.->|app schema| DBT
     AF["Airflow<br/>daily"] -.-> ACA
     AF -.-> DBT
     AF -.-> PG
+    AF -.->|on failure| SL["Slack"]
 ```
 
 Every team runs this shape: ingestion in a container, raw files in your team's
-landing volume, dbt building models in your team's catalog, and Airflow
+landing zone, dbt building models in your team's catalog, and Airflow
 publishing the finished mart into the database the backend reads.
 
-Raw files go to `/Volumes/<your catalog>/landing/raw/`. The volume already sits
-inside your catalog, so the permissions that protect your tables protect your
-raw files too, and there is no separate storage account to create or secure.
+Your raw files live in your team's own storage account, in a container called
+`landing`. That same container is registered in Unity Catalog as a volume, so
+the file the container writes as `landing/raw/postings/2026-08-12.json` is the
+file dbt reads at `/Volumes/<your catalog>/landing/raw/postings/`. One copy of
+the bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
+
+The two tracks meet through two schemas in the backend's database, and each
+side owns the one it writes. You publish marts into `analytics`, which the
+backend reads. The backend exposes views in `app`, which you read. Neither side
+reads the other's internal tables, so a migration on their side cannot silently
+break your DAG.
 
 ## What you get, and what you write
 
@@ -34,48 +44,95 @@ raw files too, and there is no separate storage account to create or secure.
 | `src/config.py` | **Done.** Reads settings from the environment and fails loudly when one is missing |
 | `src/models.py` | **Example.** A Pydantic model for job postings. Replace it with your source's shape |
 | `src/ingest.py` | **Done.** Calls the API, validates, counts rejects |
-| `src/storage.py` | **You write it.** Land raw JSON in your team's volume |
+| `src/storage.py` | **Done.** Lands raw JSON in your team's landing zone |
 | `src/sync.py` | **You write it.** Publish a mart into the backend's database |
 | `src/pipeline.py` | **Done.** Wires fetch, validate and land together |
 | `dbt/models/staging/` | **Skeleton.** Reads the volume with `read_files`. Rename to your domain |
 | `dbt/models/marts/fct_postings.sql` | **Skeleton.** This is the contract with the backend |
 | `dbt/tests/` | **Example.** Two custom tests, including a zero-row check |
 | `airflow/dags/pipeline_dag.py` | **Skeleton.** Three tasks wired in order, bodies empty |
+| `airflow/dags/alerts.py` | **Done.** Posts to Slack when any task fails |
 | `Dockerfile` | **Done.** The image you push to Azure Container Registry |
 | `optional/` | A Streamlit operations dashboard. Not required |
 
-## Getting started
+## Setup
+
+Most of this was done for you when your repository was created. What is already
+in place:
+
+- your team's storage account, Databricks catalog, SQL warehouse and secret
+  scope, and a Container Apps job to run your image
+- your Airflow instance, already pulling this repository every minute, with
+  every value it needs set as an Airflow Variable
+- CI that builds your ingestion image and pushes it to your team's registry on
+  every merge to `main`, with no credential stored anywhere
+- a Slack channel that receives an alert whenever a task fails
+
+What you do once, on your own machine:
+
+**1. Get your team's values.** Your teacher gives you four: your storage
+account name, your catalog, your SQL warehouse path, and your team letter.
+Everything else is the same for all three teams and is already filled in.
+
+**2. Fill in `.env`.**
 
 ```bash
 cd data
-cp .env.example .env             # then fill in your catalog and team credentials
-uv venv && uv pip install -e ".[dbt,sync]"
-
-(cd .. && docker compose up -d db)   # the backend's database
+cp .env.example .env      # then paste in the four values from step 1
 ```
 
-Your team's Databricks client id and secret live in Key Vault. Read them with
-your own Azure login:
+**3. Sign in to Azure.** The pipeline authenticates as you locally, and as its
+managed identity in Azure. Same code, no secret either way.
 
 ```bash
-az keyvault secret show --vault-name kv-hyf-data \
-  --name fp-databricks-client-id-team-a --query value -o tsv
+az login
 ```
 
-Your first goal is one file in the volume. Implement `get_token`,
-`volume_path` and `land_raw_json`, run `uv run python -m src.pipeline`, then
-check it landed:
+**4. Check you can reach your landing zone.** Your teacher grants each team
+member `Storage Blob Data Contributor` on your storage account. Owner or
+Contributor on the resource group is *not* enough: Azure separates managing a
+storage account from reading what is inside it, and this trips up nearly
+everyone the first time.
+
+```bash
+az storage blob list --account-name <your storage account> \
+  --container-name landing --auth-mode login -o table
+```
+
+An `AuthorizationPermissionMismatch` here means the role is missing or has not
+propagated yet. It can take a few minutes after it is granted.
+
+**5. Install and run.**
+
+```bash
+uv sync --extra dbt --extra sync
+uv run python -m src.pipeline
+```
+
+That fetches the default source and lands one file. Check it arrived, from the
+Databricks SQL editor:
 
 ```sql
-SELECT count(*) FROM read_files('/Volumes/team_a/landing/raw/postings',
+SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/raw/postings',
                                 format => 'json');
 ```
 
-Everything else builds on that.
+**6. Build the models.**
 
-Then point `landing_path` in `dbt/dbt_project.yml` at your volume and run
-`cd dbt && uv run dbt build`. When staging reads your own file, you have an end
-to end path, and the rest is shaping.
+```bash
+cd dbt && uv run dbt build
+```
+
+When staging reads your own file, you have an end to end path, and everything
+after that is shaping.
+
+### Running the whole stack locally
+
+```bash
+(cd .. && cp .env.example .env && docker compose up -d db)   # the backend's database
+docker compose run --rm pipeline                             # ingestion, as Azure runs it
+cd data/airflow && cp .env.example .env && astro dev start   # Airflow
+```
 
 ## Making it yours
 
