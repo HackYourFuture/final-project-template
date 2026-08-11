@@ -110,11 +110,16 @@ def final_project_pipeline():
         # dbt runs through uvx on Python 3.11: the Airflow image ships a newer
         # Python than stable dbt-core supports.
         #
+        # Both versions are pinned exactly, and they have to be. A wildcard like
+        # 'dbt-core==1.10.*' picks the newest 1.10 release, and dbt-databricks
+        # 1.10.11 refuses anything from 1.10.10 up, so the pair stops resolving
+        # the moment dbt-core ships a patch. If you bump one, bump both.
+        #
         # TODO: point --project-dir at your dbt folder and pass your catalog in
         # --vars, then check that `dbt build` fails the DAG when a test fails.
         bash_command=(
-            "uvx --python 3.11 --from 'dbt-core==1.10.*' "
-            "--with 'dbt-databricks==1.10.*' "
+            "uvx --python 3.11 --from 'dbt-core==1.10.9' "
+            "--with 'dbt-databricks==1.10.11' "
             "dbt build --project-dir /opt/airflow/include/dbt --profiles-dir /opt/airflow/include/dbt"
         ),
     )
