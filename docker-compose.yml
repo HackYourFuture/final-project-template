@@ -36,5 +36,25 @@ services:
     depends_on:
       - backend
 
+  # The data pipeline. Not started by `docker compose up`: it is a job that
+  # runs and exits, not a service. Run it the way Azure will, in a container:
+  #   docker compose run --rm pipeline
+  pipeline:
+    build: ./data
+    profiles: [data]
+    env_file: ./data/.env
+    environment:
+      # Reach the database by its service name on the compose network.
+      BACKEND_PG_HOST: db
+      BACKEND_PG_PORT: "5432"
+      BACKEND_PG_DB: ${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   db-data:
+
+networks:
+  default:
+    name: finalproject

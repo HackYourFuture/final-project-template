@@ -1,0 +1,15 @@
+# Python packages available to your DAGs.
+# The Airflow runtime already ships Airflow itself.
+#
+# dbt is deliberately absent: it runs through uvx on Python 3.11 from the DAG,
+# because the Airflow image ships a newer Python than stable dbt-core supports.
+databricks-sql-connector>=3.4.0
+psycopg[binary]>=3.2.0
+pydantic>=2.9.0
+requests>=2.32.0
+python-dotenv>=1.0.0
+
+# Managed Identity and the Azure management API. There is no `az` binary in the
+# Airflow image and no Container Apps provider, so the ingest task starts the
+# container job over HTTPS with a token from the VM's own identity.
+azure-identity>=1.19.0

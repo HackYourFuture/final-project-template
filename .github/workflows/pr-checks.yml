@@ -1,0 +1,114 @@
+name: PR checks
+
+# Two gates on every pull request:
+#
+# 1. The description uses the template. GitHub only auto-fills the template in
+#    the web "compose" form and in `gh pr create` with no --body. A pull request
+#    opened through the REST API or `gh pr create --body "..."`, which is the
+#    path most AI tools take, silently skips it. This check is the only thing
+#    that actually enforces it.
+#
+# 2. The diff stays reviewable. A two thousand line pull request does not get
+#    reviewed, it gets approved, which is not the same thing. Size is the real
+#    problem behind unreviewable AI-generated changes, so the limit is a number
+#    rather than an awkward conversation between teammates.
+#
+# Recovery is automatic for both: editing the description fires the `edited`
+# event and re-runs these checks. No new commit needed.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+env:
+  MAX_CHANGED_LINES: 400
+
+jobs:
+  body:
+    name: Description uses the template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required sections are present
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          required=(
+            "## What I built"
+            "## Why this approach"
+            "## Contract impact"
+            "## How to run"
+            "## Self-check"
+          )
+          missing=()
+          for section in "${required[@]}"; do
+            if ! printf '%s' "$PR_BODY" | grep -qiF "$section"; then
+              missing+=("$section")
+            fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Your pull request description is missing required sections. Start from .github/pull_request_template.md and keep these headings:"
+            for m in "${missing[@]}"; do echo "  - $m"; done
+            echo ""
+            echo "Click 'Edit' on the description, paste the template, and fill it in."
+            echo "Editing the description re-runs this check automatically."
+            exit 1
+          fi
+          echo "All required sections present."
+
+  size:
+    name: Diff stays reviewable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Count changed lines, excluding generated files
+        id: count
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" 2>/dev/null || true
+          changed=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- \
+            . \
+            ':(exclude)**/uv.lock' \
+            ':(exclude)**/package-lock.json' \
+            ':(exclude)**/poetry.lock' \
+            ':(exclude)**/*.lock' \
+            ':(exclude)**/target/**' \
+            ':(exclude)**/dbt_packages/**' \
+            ':(exclude)**/node_modules/**' \
+            | awk '{ add += ($1 == "-" ? 0 : $1); del += ($2 == "-" ? 0 : $2) } END { print add + del + 0 }')
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "Changed lines, excluding generated files: $changed"
+
+      - name: Enforce the limit, unless an override is documented
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          CHANGED: ${{ steps.count.outputs.changed }}
+        run: |
+          set -euo pipefail
+          if [ "$CHANGED" -le "$MAX_CHANGED_LINES" ]; then
+            echo "$CHANGED changed lines is within the limit of $MAX_CHANGED_LINES."
+            exit 0
+          fi
+          if printf '%s' "$PR_BODY" | grep -qiE '^[[:space:]]*Oversized:[[:space:]]*\S'; then
+            echo "::warning::$CHANGED changed lines exceeds $MAX_CHANGED_LINES, but an 'Oversized:' reason is documented in the description."
+            exit 0
+          fi
+          echo "::error::$CHANGED changed lines exceeds the limit of $MAX_CHANGED_LINES."
+          echo ""
+          echo "Split this into smaller pull requests, one purpose each. A reviewer cannot"
+          echo "meaningfully check a change this size, and approving it without reading is"
+          echo "worse than not reviewing at all."
+          echo ""
+          echo "If it genuinely cannot be split, add a line to the description:"
+          echo "  Oversized: <one sentence saying why>"
+          echo "Editing the description re-runs this check."
+          exit 1

@@ -1,0 +1,30 @@
+[project]
+name = "final-project-data"
+version = "0.1.0"
+description = "Data pipeline for the HYF final project"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32.0",
+    "pydantic>=2.9.0",
+    "python-dotenv>=1.0.0",
+    "azure-identity>=1.19.0",
+]
+
+[project.optional-dependencies]
+# The sync step reads Databricks and writes the backend database.
+sync = ["databricks-sql-connector>=3.4.0", "psycopg[binary]>=3.2.0"]
+# Pinned exactly: dbt-databricks 1.10.11 requires dbt-core <1.10.10, so an open
+# range resolves to a pair that pip and uv both reject. Bump the two together.
+dbt = ["dbt-core==1.10.9", "dbt-databricks==1.10.11"]
+dashboard = ["streamlit>=1.39.0", "pandas>=2.2.0"]
+dev = ["pytest>=8.3.0", "ruff>=0.6.0"]
+
+[tool.ruff]
+line-length = 100
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
