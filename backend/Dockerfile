@@ -1,5 +1,8 @@
-# Stage 1: build the JAR (needs JDK, Maven and your source code)
-FROM maven:3.9-eclipse-temurin-25 AS build
+# Stage 1: build the JAR (needs JDK, Maven and your source code).
+# --platform=$BUILDPLATFORM pins this stage to the machine doing the build, so a
+# multi-architecture build compiles once natively instead of once per architecture
+# under emulation. Java bytecode is the same everywhere, so the JAR is portable.
+FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
 COPY . .
 RUN mvn package -DskipTests
