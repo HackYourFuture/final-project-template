@@ -1,8 +1,13 @@
 spring:
   application:
     name: hyf-project-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mydb}
+    username: ${DB_USER:admin}
+    password: ${DB_PASSWORD:password}
+
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 # API Docs
 springdoc:
