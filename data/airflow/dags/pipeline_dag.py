@@ -13,21 +13,23 @@ publish a mart that failed its own tests. Airflow gives you both for free.
 
 This file is a skeleton. Each task says what it has to do; you write the body.
 
-Set these Airflow variables before the first run:
-    AZURE_RESOURCE_GROUP, ACA_JOB_NAME,
-    DATABRICKS_HOST, DATABRICKS_HTTP_PATH,
-    DATABRICKS_CLIENT_ID, DATABRICKS_CLIENT_SECRET,
-    DATABRICKS_CATALOG, DBT_SCHEMA,
-    BACKEND_PG_HOST, BACKEND_PG_DB, BACKEND_PG_USER, BACKEND_PG_PASSWORD
+Set these as Airflow variables before the first run. They are names and hosts,
+not secrets:
+    AZURE_SUBSCRIPTION, AZURE_RESOURCE_GROUP, ACA_JOB_NAME,
+    DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_CATALOG, DBT_SCHEMA,
+    BACKEND_PG_HOST, BACKEND_PG_DB
 
-Read the secret ones from Key Vault. Your VM has an identity that is allowed to
-read your team's secrets and nobody else's, so the DAG fetches them at run time
-and nothing is stored on the VM. Never type a secret into this file: it is
-committed, and everyone on your team can read it.
+Every actual secret comes from Key Vault at run time, through `keyvault()`
+below. Your VM has an identity that is allowed to read your team's secrets and
+nobody else's, so nothing is stored on the VM and a typo in a secret name fails
+with a 403 rather than reaching someone else's data. Never type a secret into
+this file: it is committed, and everyone on your team can read it.
 """
 
 from __future__ import annotations
 
+import json
+import urllib.request
 from datetime import datetime, timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
@@ -38,6 +40,31 @@ DEFAULT_ARGS = {
     "retries": 2,
     "retry_delay": timedelta(minutes=5),
 }
+
+VAULT = "kv-hyf-data"
+
+
+def azure_token(resource: str) -> str:
+    """A token for the VM's own identity, from the instance metadata service.
+
+    This is what Managed Identity looks like in practice. There is no client
+    secret anywhere: the VM asks Azure who it is, and Azure answers.
+
+    Pass "https://management.azure.com/" to talk to Azure itself, or
+    "https://vault.azure.net" to open Key Vault.
+    """
+    url = ("http://169.254.169.254/metadata/identity/oauth2/token"
+           f"?api-version=2018-02-01&resource={resource}")
+    request = urllib.request.Request(url, headers={"Metadata": "true"})
+    return json.load(urllib.request.urlopen(request, timeout=15))["access_token"]
+
+
+def keyvault(secret_name: str) -> str:
+    """One secret, fetched at run time. Never logged, never written to disk."""
+    token = azure_token("https://vault.azure.net")
+    url = f"https://{VAULT}.vault.azure.net/secrets/{secret_name}?api-version=7.4"
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    return json.load(urllib.request.urlopen(request, timeout=20))["value"]
 
 
 @dag(
@@ -63,10 +90,18 @@ def final_project_pipeline():
         immediately reports green while the job is still running, which makes
         the dbt step build on data that is not there yet.
 
-        Two ways in, both fine:
-          - `az containerapp job start` in a BashOperator, then poll with
-            `az containerapp job execution show`
-          - the azure-mgmt-appcontainers SDK from Python
+        Your Airflow image has no `az` command and no Container Apps provider,
+        so this is an HTTP call. Use `azure_token()` below, then:
+
+            base = (f"https://management.azure.com/subscriptions/{SUBSCRIPTION}"
+                    f"/resourceGroups/{RESOURCE_GROUP}"
+                    f"/providers/Microsoft.App/jobs/{JOB_NAME}")
+
+            POST {base}/start?api-version=2024-03-01       to start it
+            GET  {base}/executions?api-version=2024-03-01  to poll status
+
+        Match the execution by the `name` the start call returns, and treat
+        anything other than Succeeded, Running or Pending as a failure.
         """
         raise NotImplementedError
 
