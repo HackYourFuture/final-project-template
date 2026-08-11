@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>nl.hackyourfuture.project</groupId>
 	<artifactId>backend</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0-SNAPSHOT</version>
 	<name/>
 	<description/>
 	<url/>
@@ -144,7 +144,17 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>3.6.0</version>
+				<configuration>
+					<configLocation>checkstyle.xml</configLocation>
+					<consoleOutput>true</consoleOutput>
+					<failOnViolation>true</failOnViolation>
+					<violationSeverity>warning</violationSeverity>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
-
 </project>

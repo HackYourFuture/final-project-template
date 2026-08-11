@@ -44,7 +44,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/frontend
+          images: ghcr.io/${{ github.repository }}/frontend
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ env.VERSION }},enable={{is_default_branch}}

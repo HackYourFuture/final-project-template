@@ -61,6 +61,12 @@ Run the tests:
 
 > `BackendApplicationTests.contextLoads()` boots the whole Spring context, so it needs a reachable database just like the app does.
 
+Check code style with Checkstyle ([`checkstyle.xml`](checkstyle.xml)):
+
+```bash
+./mvnw checkstyle:check
+```
+
 ### Docker build
 
 The [`Dockerfile`](Dockerfile) is multi-stage, so you need neither Java nor Maven installed:
@@ -78,15 +84,13 @@ Stage 1 compiles the JAR in a Maven image; stage 2 copies just that JAR into a s
 Pull the published image from GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/<org>/<repo>-backend:latest
+docker pull ghcr.io/<org>/backend:latest
 ```
-
-> ⚠️ The exact package name lands here in a later commit, together with the publishing workflow in [`.github/workflows`](../.github/workflows).
 
 Run it, pointing at your database:
 
 ```bash
-docker run -p 8080:8080 -e DB_URL=jdbc:postgresql://my-db-host:5432/mydb -e DB_USER=admin -e DB_PASSWORD=secret ghcr.io/<org>/<repo>-backend:latest
+docker run -p 8080:8080 -e DB_URL=jdbc:postgresql://my-db-host:5432/mydb -e DB_USER=admin -e DB_PASSWORD=secret ghcr.io/<org>/backend:latest
 ```
 
 Two things to watch:
@@ -198,11 +202,23 @@ Name files `V<number>__<description>.sql` (**two** underscores): after `V1__init
 
 ---
 
+## CI/CD
+
+Every push or PR touching `backend/**` runs [`deploy-backend.yaml`](../.github/workflows/deploy-backend.yaml):
+
+1. **`lint-and-test`** — `./mvnw checkstyle:check` then `./mvnw test`. Both must pass.
+2. **`build`** — builds the Docker image; only pushes to GHCR when the change lands on `main`.
+
+Images are tagged `latest`, `1.0.<run number>`, and `main-sha-<short sha>`.
+
+---
+
+
 ## Adding a feature
 
 Adding products, bottom-up:
 
-1. Migration — `V2__create_products_table.sql`
+1. Migration — `V3__create_products_table.sql`
 2. Create the `product/` package next to `user/`
 3. `Product.java` mirroring the table
 4. `ProductRepository.java` with a `RowMapper` and your SQL
@@ -224,7 +240,7 @@ The `user` package is your reference — deliberately small and complete.
 - **Keep classes under `nl.hackyourfuture.project.backend`.** Spring only scans below the package holding `BackendApplication`; anything outside is silently ignored.
 - **Use correct status codes** — `200` read/update, `201` create (see `@ResponseStatus(HttpStatus.CREATED)`), `400` invalid input, `404` not found — then document them with `@ApiResponse`.
 - **Validate at the edge:** constraints on the request DTO, `@Valid` on the controller parameter.
-- **Before opening a PR,** run `./mvnw clean package` and check your endpoints render in the Scalar UI.
+- **Before opening a PR,** run `./mvnw checkstyle:check` and `./mvnw test` locally — CI runs the same checks and blocks the PR if either fails.
 
 ### Troubleshooting
 
@@ -236,3 +252,4 @@ The `user` package is your reference — deliberately small and complete.
 | `403 Forbidden` on your new endpoint | Not listed in `SecurityConfig`; anything unlisted requires authentication |
 | Endpoint missing from `/api/docs` | Not annotated `@RestController`, or outside the base package |
 | IDE errors on `@Getter`/`@Builder` but Maven builds fine | Lombok plugin not installed in the IDE |
+| Checkstyle fails in CI but not locally | Run `./mvnw checkstyle:check` before pushing — it's the same check CI runs |
