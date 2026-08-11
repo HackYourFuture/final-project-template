@@ -29,17 +29,29 @@ this file: it is committed, and everyone on your team can read it.
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 from datetime import datetime, timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import dag, task
 
+from alerts import slack_alert
+
 DEFAULT_ARGS = {
     "owner": "data-team",
     "retries": 2,
     "retry_delay": timedelta(minutes=5),
+    # Every task inherits this, including ones you add later. Attaching it per
+    # operator instead means the task you add at 11pm on a Thursday is the one
+    # without alerting.
+    "on_failure_callback": slack_alert,
 }
+
+# Where the dbt project is mounted. Local Astro puts the project under
+# /usr/local/airflow; the team VM runs plain Airflow at /opt/airflow. The
+# override file sets this for local runs, so neither path is hardcoded here.
+DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/airflow/include/dbt")
 
 VAULT = "kv-hyf-data"
 
@@ -115,12 +127,12 @@ def final_project_pipeline():
         # 1.10.11 refuses anything from 1.10.10 up, so the pair stops resolving
         # the moment dbt-core ships a patch. If you bump one, bump both.
         #
-        # TODO: point --project-dir at your dbt folder and pass your catalog in
-        # --vars, then check that `dbt build` fails the DAG when a test fails.
+        # TODO: pass your catalog in --vars, then check that `dbt build` fails
+        # the DAG when a test fails.
         bash_command=(
             "uvx --python 3.11 --from 'dbt-core==1.10.9' "
             "--with 'dbt-databricks==1.10.11' "
-            "dbt build --project-dir /opt/airflow/include/dbt --profiles-dir /opt/airflow/include/dbt"
+            f"dbt build --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
         ),
     )
 

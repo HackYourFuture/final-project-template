@@ -87,7 +87,16 @@ jobs:
           AIRFLOW__CORE__LOAD_EXAMPLES: "False"
         run: |
           python - <<'PY'
+          import os
           import sys
+
+          # Airflow's DAG processor puts the dags folder on sys.path before it
+          # parses a file, which is what lets a DAG import a helper sitting next
+          # to it. A bare DagBag() does not, so without this line the check is
+          # stricter than the runtime and fails on an import that works in
+          # production.
+          sys.path.insert(0, os.path.abspath("dags"))
+
           from airflow.models.dagbag import DagBag
 
           bag = DagBag("dags", include_examples=False)

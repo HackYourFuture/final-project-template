@@ -19,6 +19,9 @@ x-local: &local
     - ../dbt:/usr/local/airflow/include/dbt:rw
   environment:
     PYTHONPATH: /usr/local/airflow
+    # Astro mounts the project here; the team VM uses /opt/airflow. The DAG
+    # reads this rather than hardcoding either one.
+    DBT_PROJECT_DIR: /usr/local/airflow/include/dbt
   networks:
     - default
     - finalproject
