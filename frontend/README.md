@@ -2,10 +2,20 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, install the dependencies and run the development server:
+Requires Node.js `>=24.19.0` (see `engines` in `package.json`).
+
+First, install the dependencies and copy the example environment file:
 
 ```bash
 npm install
+cp .env.example .env.local
+```
+
+`BACKEND_API_URL` in `.env.local` should point at your running backend (see `../backend/README.md`), default `http://localhost:8080`.
+
+Then run the development server:
+
+```bash
 npm run dev
 ```
 
