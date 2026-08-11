@@ -34,14 +34,17 @@ def _required(name: str) -> str:
 class Config:
     """Settings the ingestion job needs.
 
-    The client secret is not a field here. It is fetched from Key Vault at
-    run time by the identity of whatever is running: your `az login` locally,
-    the Container Apps job's managed identity in Azure.
+    Notice what is absent: there is no client id, no secret, no connection
+    string. The job authenticates as itself, through the managed identity
+    Azure gives the container, so the only settings here are names.
+
+    `databricks_catalog` is used for one log line telling you where dbt will
+    see the file. It is optional for that reason.
     """
 
     source_api_url: str
     source_name: str
-    databricks_host: str
+    storage_account: str
     databricks_catalog: str
 
 
@@ -54,6 +57,6 @@ def load_config() -> Config:
     return Config(
         source_api_url=_required("SOURCE_API_URL"),
         source_name=os.getenv("SOURCE_NAME", "source"),
-        databricks_host=_required("DATABRICKS_HOST").replace("https://", ""),
-        databricks_catalog=_required("DATABRICKS_CATALOG"),
+        storage_account=_required("STORAGE_ACCOUNT"),
+        databricks_catalog=os.getenv("DATABRICKS_CATALOG", "<your catalog>"),
     )

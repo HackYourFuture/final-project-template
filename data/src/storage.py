@@ -1,4 +1,4 @@
-"""Land raw records as files in your team's Databricks volume.
+"""Land raw records as files in your team's landing zone.
 
 This is the boundary between "getting data in" and "shaping data". The
 ingestion job only lands files. Everything after that is dbt's job, which is
@@ -9,90 +9,98 @@ a column changes shape three weeks from now, you can re-read the file and find
 out when it changed. A row that was already parsed into a table cannot tell you
 that.
 
-Why a volume and not your own storage account: the volume already lives inside
-your catalog, so the same permissions that protect your tables protect your raw
-files, and dbt reads them with `read_files()` without knowing where the bytes
-physically sit. Your path is `/Volumes/<your catalog>/landing/raw/...`.
+Where the bytes go, and why you see them in two places
+------------------------------------------------------
+Your team has its own Azure storage account with a `landing` container. This
+module writes blobs into it. That same container is registered in Unity Catalog
+as an external volume, so the file you write as
 
-YOU IMPLEMENT THIS FILE.
+    landing/raw/postings/2026-08-12.json
 
-Authentication is your team's service principal, the same client id and secret
-dbt uses. Both come from Key Vault at run time. Two calls:
+is readable from dbt as
 
-    # 1. Entra token for Databricks
-    POST https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token
-         grant_type=client_credentials, client_id, client_secret,
-         scope=2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default
+    /Volumes/<your catalog>/landing/raw/postings/2026-08-12.json
 
-    # 2. Upload, one PUT per file
-    PUT https://<host>/api/2.0/fs/files/Volumes/<catalog>/landing/raw/<path>
-        ?overwrite=true
-        Authorization: Bearer <token>
+One copy of the bytes, two ways to reach them: Azure tooling on one side, SQL
+on the other. `volume_path()` below returns the second form, which is what you
+put in `dbt_project.yml`.
 
-Both are plain HTTP, so `requests` is all you need. A 204 means it landed.
+Authentication: there is no secret here
+---------------------------------------
+`DefaultAzureCredential` asks the environment who it is. On your laptop that is
+your `az login`. In Azure it is the Container Apps job's managed identity,
+which holds Storage Blob Data Contributor on your team's account and nothing
+else. The same code runs in both places, and no password exists to leak,
+rotate, or accidentally commit.
 
-Docs: https://docs.databricks.com/api/azure/workspace/files/upload
+Shared key access is switched off on the account, so an identity is the only
+way in. If you find a tutorial that tells you to paste a connection string,
+that is the thing this design removes.
 """
 
+import json
 import logging
+from datetime import date
+
+from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient
 
 logger = logging.getLogger(__name__)
 
+CONTAINER = "landing"
 
-def volume_path(catalog: str, source_name: str, run_date: str) -> str:
-    """Return the volume path to write for one run.
 
-    Put the date in the path. One file per run per day means a re-run
-    overwrites its own file instead of doubling your data, and you can still
-    see every day that ever ran.
+def blob_path(source_name: str, run_date: str | None = None) -> str:
+    """Where one run's file goes inside the landing container.
 
-    TODO: decide your layout. Something like
-    `/Volumes/team_a/landing/raw/postings/2026-08-10.json` is enough. Write
-    down why you chose it in the README, because dbt reads whatever you choose
-    here.
+    The date is in the path on purpose. One file per source per day means a
+    re-run overwrites its own file instead of doubling your data, and you can
+    still see every day that ever ran.
+
+    You can change this layout, but change `landing_path` in dbt_project.yml to
+    match and write down why in the README, because dbt reads whatever you
+    choose here.
     """
-    raise NotImplementedError
+    run_date = run_date or date.today().isoformat()
+    return f"raw/{source_name}/{run_date}.json"
 
 
-def land_raw_json(
-    host: str,
-    token: str,
-    path: str,
-    records: list[dict],
-) -> int:
-    """Upload records as one JSON file, and return how many were written.
+def volume_path(catalog: str, source_name: str) -> str:
+    """The same location, as dbt sees it. Put this in dbt_project.yml."""
+    return f"/Volumes/{catalog}/landing/raw/{source_name}"
+
+
+def land_raw_json(account: str, path: str, records: list[dict]) -> int:
+    """Write records as one JSON file and return how many were written.
 
     Args:
-        host: your workspace host, without https://
-        token: the Entra access token from get_token
-        path: what volume_path returned
-        records: the parsed records to write
+        account: your team's storage account name, no https:// and no suffix
+        path: what `blob_path()` returned
+        records: the raw records, exactly as the source sent them
 
-    Write one JSON object per line rather than one big array. dbt reads that
-    shape directly, and a half-written file costs you one line instead of the
+    One JSON object per line, not one big array. dbt's `read_files` reads that
+    shape directly, and a half-written file costs you one line rather than the
     whole run.
 
-    Overwrite an existing file rather than failing: Airflow re-runs tasks, and
-    a re-run of the same day must replace that day's file.
+    Overwrites an existing file rather than failing, because Airflow re-runs
+    tasks and a re-run of the same day must replace that day's file.
 
-    Let failures raise. A silent failure here is the worst kind: dbt then
-    builds happily on yesterday's file and nobody notices for a week.
-
-    TODO: implement, then check the file really is there before you move on:
-
-        SELECT * FROM read_files('/Volumes/<catalog>/landing/raw/postings',
-                                 format => 'json')
+    Anything that goes wrong here raises. A silent failure is the worst kind:
+    dbt would then build happily on yesterday's file and nobody would notice
+    for a week.
     """
-    raise NotImplementedError
+    if not records:
+        raise ValueError("refusing to land an empty file: nothing to write")
 
+    payload = "\n".join(json.dumps(record) for record in records).encode()
 
-def get_token(tenant_id: str, client_id: str, client_secret: str) -> str:
-    """Exchange your team's client id and secret for a Databricks token.
+    credential = DefaultAzureCredential()
+    service = BlobServiceClient(f"https://{account}.blob.core.windows.net", credential)
+    blob = service.get_blob_client(container=CONTAINER, blob=path)
+    blob.upload_blob(payload, overwrite=True)
 
-    The token is short-lived on purpose. Fetch one per run and keep it in
-    memory: never write it to a file, a log line, or an Airflow Variable.
-
-    TODO: implement the client-credentials POST above and return
-    `access_token`.
-    """
-    raise NotImplementedError
+    logger.info(
+        "landed %d records, %d bytes, to %s/%s on %s",
+        len(records), len(payload), CONTAINER, path, account,
+    )
+    return len(records)
