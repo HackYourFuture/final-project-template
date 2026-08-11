@@ -37,6 +37,27 @@ renamed as (
         ingested_at
     from source
 
+),
+
+deduplicated as (
+
+    -- One row per posting, keeping the most recently ingested version.
+    --
+    -- This is not optional tidying. `read_files` reads every file in the
+    -- landing folder, and most sources still list the same record tomorrow, so
+    -- on day two a posting that is still open appears twice. The `unique` test
+    -- on posting_id then fails, the DAG goes red, and nothing is actually
+    -- wrong with the data.
+    --
+    -- Keeping the newest version also means a posting that changed (a title
+    -- edit, a closing date) reflects what the source says today rather than
+    -- what it said the first time you saw it.
+    select * from renamed
+    qualify row_number() over (
+        partition by posting_id
+        order by ingested_at desc
+    ) = 1
+
 )
 
-select * from renamed
+select * from deduplicated
