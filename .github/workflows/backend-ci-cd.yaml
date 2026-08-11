@@ -5,11 +5,11 @@ on:
     branches: [main]
     paths:
       - "backend/**"
-      - ".github/workflows/deploy-backend.yaml"
+      - ".github/workflows/backend-ci-cd.yaml"
   pull_request:
     paths:
       - "backend/**"
-      - ".github/workflows/deploy-backend.yaml"
+      - ".github/workflows/backend-ci-cd.yaml"
 
 # Cancel previous runs on new pushes
 concurrency:
