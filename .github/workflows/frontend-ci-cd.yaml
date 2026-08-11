@@ -1,4 +1,4 @@
-name: Build Frontend Container Image
+name: Frontend CI/CD
 
 on:
   push:
