@@ -17,7 +17,7 @@ your source and your model, not this wiring.
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import UTC, datetime
 
 from .config import load_config
 from .ingest import fetch_raw, parse_records
@@ -39,7 +39,7 @@ def run(run_date: str | None = None) -> int:
             file rather than today's.
     """
     config = load_config()
-    run_date = run_date or date.today().isoformat()
+    run_date = run_date or datetime.now(tz=UTC).date().isoformat()
 
     records = fetch_raw(config.source_api_url)
     parsed, rejected = parse_records(records)

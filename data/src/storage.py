@@ -40,7 +40,7 @@ that is the thing this design removes.
 
 import json
 import logging
-from datetime import date
+from datetime import UTC, datetime
 
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
@@ -61,7 +61,7 @@ def blob_path(source_name: str, run_date: str | None = None) -> str:
     match and write down why in the README, because dbt reads whatever you
     choose here.
     """
-    run_date = run_date or date.today().isoformat()
+    run_date = run_date or datetime.now(tz=UTC).date().isoformat()
     return f"raw/{source_name}/{run_date}.json"
 
 

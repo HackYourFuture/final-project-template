@@ -31,11 +31,10 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import dag, task
-
 from alerts import slack_alert
 
 DEFAULT_ARGS = {
@@ -82,7 +81,7 @@ def keyvault(secret_name: str) -> str:
 @dag(
     dag_id="final_project_pipeline",
     description="Ingest to the lakehouse, build dbt models, publish to the backend",
-    start_date=datetime(2026, 1, 1),
+    start_date=datetime(2026, 1, 1, tzinfo=UTC),
     schedule="0 6 * * *",
     catchup=False,
     default_args=DEFAULT_ARGS,
