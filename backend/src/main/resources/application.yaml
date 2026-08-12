@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/project_db?currentSchema=app}
     username: ${DB_USER:app_user}
-    password: ${DB_PASSWORD:secret}
+    password: ${DB_PASSWORD}
   flyway:
     schemas: app
 

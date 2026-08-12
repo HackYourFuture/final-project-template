@@ -122,9 +122,9 @@ All configuration lives in [`application.yaml`](src/main/resources/application.y
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/mydb?currentSchema=app` | JDBC URL, must start with `jdbc:postgresql://`. Keep `?currentSchema=app` |
-| `DB_USER` | `admin` | Database username |
-| `DB_PASSWORD` | `password` | Database password |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/project_db?currentSchema=app` | JDBC URL, must start with `jdbc:postgresql://`. Keep `?currentSchema=app` |
+| `DB_USER` | — | Database username (use `app_user`) |
+| `DB_PASSWORD` | — | Database password (from `db-setup.py`) |
 | `PORT` | `8080` | Port the server listens on |
 | `SPRING_PROFILES_ACTIVE` | — | `dev` or `prod`. The Docker image defaults to `prod` |
 
