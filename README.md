@@ -4,7 +4,7 @@
 
 This is our final project for the [HackYourFuture program](https://hackyourfuture.net/program), built as a
 team with three roles — frontend, backend, and data engineering. We worked in an agile way, in short
-sprints, supported by a group of mentors: Product Manager and a Tech Lead. The project is open source and available on GitHub.
+sprints, supported by a group of mentors: a Product Manager and a a Tech Lead. The project is open source and available on GitHub.
 
 ### 🌐 [Live demo](https://your-app.example.com)
 
@@ -92,9 +92,6 @@ flowchart LR
 | Backend guide | [`backend/README.md`](backend/README.md) |
 | Data pipeline guide | [`data/README.md`](data/README.md) |
 | Live API reference (Scalar) | http://server-host/api/docs |
-
-The API documentation is generated from the backend code at runtime, so it is never out of date —
-there is no `openapi.yaml` file to maintain by hand.
 
 
 ## CI/CD
