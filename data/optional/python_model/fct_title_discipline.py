@@ -101,11 +101,18 @@ def classify(titles: list[str], call) -> dict[str, str]:
     return result
 
 
-def openrouter(api_key: str, model: str = MODEL, timeout: int = 120):
+def openrouter(api_key: str, model: str = MODEL, read_timeout: int = 120):
     """Build the `call` function that talks to OpenRouter.
 
     Kept to one small function on purpose: swapping OpenRouter for Azure
     OpenAI, or for a model you host, is a change to this and nothing else.
+
+    `read_timeout` is not a budget for the whole request. Python applies it to
+    each socket read, so a server that answers and then sends its body slowly
+    can take far longer: a measured 100-title request took 434 seconds under a
+    300-second setting. It protects you from a server that never replies, not
+    from one that is slow. The cap that actually bounds the run is the dbt task
+    timeout in the DAG.
     """
 
     def call(prompt: str) -> str:
@@ -126,7 +133,7 @@ def openrouter(api_key: str, model: str = MODEL, timeout: int = 120):
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.urlopen(request, timeout=read_timeout) as response:
                 body = json.load(response)
         except urllib.error.HTTPError as error:
             # 429 is the one you will actually meet, and the default message
