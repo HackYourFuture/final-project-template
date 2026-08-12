@@ -221,6 +221,8 @@ venv/
 # --- dbt ---
 target/
 dbt_packages/
+# Written by dbt on first run and holds a per-machine id, not a setting.
+.user.yml
 
 # --- Airflow (Astro) ---
 # .astro/config.yaml must be committed: without it the folder is not an Astro
