@@ -42,11 +42,10 @@ the file the container writes as `landing/raw/postings/2026-08-12.json` is the
 file dbt reads at `/Volumes/<your catalog>/landing/raw/postings/`. One copy of
 the bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
 
-The two tracks meet through two schemas in the backend's database, and each
-side owns the one it writes. You publish marts into `analytics`, which the
-backend reads. The backend exposes views in `app`, which you read. Neither side
-reads the other's internal tables, so a migration on their side cannot silently
-break your DAG.
+The two tracks meet in the backend's database, which has one schema per side.
+You write marts into `analytics`, which the backend reads. The backend writes
+`public`, which you can read. Neither side can write to the other's schema, so
+a stray publish cannot corrupt the application.
 
 ## What is where
 
