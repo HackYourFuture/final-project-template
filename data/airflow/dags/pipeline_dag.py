@@ -58,8 +58,22 @@ def setting(name: str, default: str | None = None) -> str:
     return value
 
 
-def keyvault(secret_name: str) -> str:
-    """One secret, fetched at run time. Never logged, never written to disk."""
+def secret(env_name: str, secret_name: str) -> str:
+    """One secret: the environment first, then your team's Key Vault.
+
+    On the VM nothing is in the environment, so every secret comes from Key
+    Vault through the machine's own identity. On your laptop there is no such
+    identity, so the same task reads what you put in `data/.env`. That is what
+    lets you run a task locally without a copy of the DAG that skips the
+    security.
+
+    Never logged, never written to disk, and fetched inside the task rather
+    than at parse time.
+    """
+    from_env = os.environ.get(env_name)
+    if from_env:
+        return from_env
+
     from src.aca import imds_token
 
     token = imds_token("https://vault.azure.net")
@@ -84,8 +98,10 @@ def databricks_environment() -> dict[str, str]:
         "DATABRICKS_CATALOG": setting("DATABRICKS_CATALOG"),
         "DBT_SCHEMA": setting("DBT_SCHEMA"),
         "AZURE_TENANT_ID": setting("AZURE_TENANT_ID"),
-        "DATABRICKS_CLIENT_ID": keyvault(f"fp-databricks-client-id-{team}"),
-        "DATABRICKS_CLIENT_SECRET": keyvault(f"fp-databricks-client-secret-{team}"),
+        "DATABRICKS_CLIENT_ID": secret("DATABRICKS_CLIENT_ID", f"fp-databricks-client-id-{team}"),
+        "DATABRICKS_CLIENT_SECRET": secret(
+            "DATABRICKS_CLIENT_SECRET", f"fp-databricks-client-secret-{team}"
+        ),
     }
 
 
@@ -153,13 +169,23 @@ def final_project_pipeline():
         columns, rows = read_mart(
             Warehouse.from_env(), setting("DBT_SCHEMA"), "fct_postings_enriched"
         )
+        user = setting("BACKEND_PG_USER", "analytics_writer")
+        password = secret("BACKEND_PG_PASSWORD", f"fp-pg-analytics-writer-{setting('TEAM')}")
+        # sslmode=require in Azure; the local container has no certificate, so
+        # `prefer` keeps one DSN working in both places.
+        sslmode = setting("BACKEND_PG_SSLMODE", "require")
         dsn = (
-            f"host={setting('BACKEND_PG_HOST')} dbname={setting('BACKEND_PG_DB')} "
-            f"user=analytics_writer "
-            f"password={keyvault('fp-pg-analytics-writer-' + setting('TEAM'))} "
-            "sslmode=require"
+            f"host={setting('BACKEND_PG_HOST')} port={setting('BACKEND_PG_PORT', '5432')} "
+            f"dbname={setting('BACKEND_PG_DB')} user={user} password={password} "
+            f"sslmode={sslmode}"
         )
-        return publish(dsn, "analytics", "fct_postings", columns, rows)
+        return publish(
+            dsn,
+            setting("BACKEND_PG_PUBLISH_SCHEMA", "analytics"),
+            "fct_postings",
+            columns,
+            rows,
+        )
 
     ingest() >> dbt_build() >> enrich() >> publish_to_backend()
 

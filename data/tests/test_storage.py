@@ -18,6 +18,19 @@ def test_default_run_date_is_todays_utc_date():
     assert storage.blob_path("postings").endswith(f"{datetime.now(tz=UTC).date().isoformat()}.json")
 
 
+def test_a_dev_prefix_keeps_your_runs_out_of_the_teams_files():
+    """The isolation the whole local loop depends on: your ingestion writes
+    somewhere the scheduled pipeline never reads."""
+    assert (
+        storage.blob_path("postings", "2026-08-12", "dev/alex")
+        == "dev/alex/postings/2026-08-12.json"
+    )
+    assert (
+        storage.volume_path("team_a", "postings", "dev/alex")
+        == "/Volumes/team_a/landing/dev/alex/postings"
+    )
+
+
 def test_volume_path_matches_the_blob_layout():
     """The same bytes, named the way dbt reaches them."""
     assert storage.volume_path("team_a", "postings") == "/Volumes/team_a/landing/raw/postings"

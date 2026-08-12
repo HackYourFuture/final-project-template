@@ -38,6 +38,7 @@ class Config:
     source_name: str
     storage_account: str
     databricks_catalog: str
+    landing_prefix: str
 
 
 def load_config() -> Config:
@@ -55,6 +56,8 @@ def load_config() -> Config:
         source_name=os.getenv("SOURCE_NAME", "source"),
         storage_account=required("STORAGE_ACCOUNT"),
         databricks_catalog=os.getenv("DATABRICKS_CATALOG", "<your catalog>"),
+        # "raw" in Azure, "dev/<your name>" on your machine.
+        landing_prefix=os.getenv("LANDING_PREFIX", "raw"),
     )
 
 
@@ -81,7 +84,7 @@ def run(run_date: str | None = None) -> int:
     # gate, not a transformation. See the README, "Raw means raw".
     landed = land_raw_json(
         account=config.storage_account,
-        path=blob_path(config.source_name, run_date),
+        path=blob_path(config.source_name, run_date, config.landing_prefix),
         records=records,
     )
 
@@ -89,7 +92,7 @@ def run(run_date: str | None = None) -> int:
         "Pipeline finished: %d landed, %d rejected, readable at %s",
         landed,
         rejected,
-        volume_path(config.databricks_catalog, config.source_name),
+        volume_path(config.databricks_catalog, config.source_name, config.landing_prefix),
     )
     return landed
 

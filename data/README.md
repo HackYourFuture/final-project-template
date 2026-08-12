@@ -186,6 +186,67 @@ loop notices a failed container, and whether the publish swaps its tables in an
 order that never leaves the backend looking at a missing one. Add to them as
 you go, and CI runs them on every pull request.
 
+## Developing locally
+
+Everything except the two container jobs runs on your machine, against your
+own copy of the data. The isolation comes from four settings in `.env`, and
+they are the first thing to fill in:
+
+| Setting | Yours | The scheduled run |
+|---|---|---|
+| `LANDING_PREFIX` | `dev/your-name` | `raw` |
+| `LANDING_PATH` | `/Volumes/<catalog>/landing/dev/your-name/postings` | `.../landing/raw/postings` |
+| `DBT_SCHEMA` | `dev_yourname` | `analytics` |
+| `BACKEND_PG_PUBLISH_SCHEMA` | `analytics_dev` | `analytics` |
+
+Your team's catalog has two volumes for this: `raw`, which the scheduled
+pipeline writes and everybody's models read, and `dev`, which is yours to
+scribble in. Nothing you do under `dev/your-name` can affect what the team's
+models see.
+
+The loop, start to finish:
+
+```bash
+uv run pytest                              # no credentials needed at all
+uv run python -m src.pipeline              # lands in dev/your-name
+cd dbt && uv run --env-file ../.env dbt build && cd ..   # builds dev_yourname
+uv run python -m src.enrich                # adds discipline, same schema
+```
+
+`dbt build` needs no `--vars`: it reads `LANDING_PATH` from the same `.env`
+your ingestion wrote to, so the two cannot disagree. In VS Code, point the dbt
+extension at `data/dbt` and it picks up the same profile.
+
+### The last step, in Airflow
+
+```bash
+cp .env.example .env && docker compose up -d db      # repo root, first
+cd data/airflow && astro dev start
+```
+
+Astro reads your `data/.env`, so a task running there uses your prefix, your
+schema and your database. It overrides three values, because inside a
+container `localhost` means the container itself: the database is reached as
+`db` on 5432, with `sslmode=prefer` since the local Postgres has no
+certificate.
+
+Run the publish step against your own schema:
+
+```bash
+docker exec -it $(docker ps -qf name=scheduler) \
+  airflow tasks test final_project_pipeline publish_to_backend $(date +%F)
+```
+
+It reads `<catalog>.dev_yourname.fct_postings_enriched` and writes
+`analytics_dev.fct_postings` in the compose database, which `data/local/`
+creates when the database first starts. `dbt_build` runs the same way. The
+`ingest` and `enrich` tasks do not: they start Container Apps jobs, which
+needs the VM's identity, so run those two as the scripts above.
+
+> The same DAG file runs in both places. It reads a secret from your `.env`
+> when there is one and from Key Vault when there is not, so nothing has to be
+> commented out or stubbed to make local work.
+
 ## Keeping the code tidy
 
 Four tools, each with one job, all installed by `uv sync --extra dev` and all

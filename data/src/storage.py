@@ -15,16 +15,23 @@ logger = logging.getLogger(__name__)
 
 CONTAINER = "landing"
 
+# Everything the scheduled pipeline writes lives under `raw`. Your own runs go
+# somewhere else, so testing a change never overwrites the file the team's
+# models are reading. See the README, "Developing locally".
+PRODUCTION_PREFIX = "raw"
 
-def blob_path(source_name: str, run_date: str | None = None) -> str:
+
+def blob_path(
+    source_name: str, run_date: str | None = None, prefix: str = PRODUCTION_PREFIX
+) -> str:
     """Where one run's file goes. One file per source per day."""
     run_date = run_date or datetime.now(tz=UTC).date().isoformat()
-    return f"raw/{source_name}/{run_date}.json"
+    return f"{prefix}/{source_name}/{run_date}.json"
 
 
-def volume_path(catalog: str, source_name: str) -> str:
-    """The same location as dbt sees it. Put this in dbt_project.yml."""
-    return f"/Volumes/{catalog}/landing/raw/{source_name}"
+def volume_path(catalog: str, source_name: str, prefix: str = PRODUCTION_PREFIX) -> str:
+    """The same location as dbt sees it: what LANDING_PATH should be set to."""
+    return f"/Volumes/{catalog}/landing/{prefix}/{source_name}"
 
 
 def land_raw_json(account: str, path: str, records: list[dict]) -> int:

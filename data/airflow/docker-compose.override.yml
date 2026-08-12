@@ -20,10 +20,25 @@ x-local: &local
     # no PYTHONPATH to set and nothing to remember when it is deployed.
     - ../src:/usr/local/airflow/dags/src:ro
     - ../dbt:/usr/local/airflow/include/dbt:rw
+  # Your data/.env, so a task running here reads the same settings and
+  # credentials your own `uv run` commands do. On the team VM there is no such
+  # file: settings come from Airflow Variables and secrets from Key Vault. The
+  # DAG tries the environment first, which is what makes one file work in both
+  # places. `required: false` so the stack still starts before you have made
+  # the file.
+  env_file:
+    - path: ../.env
+      required: false
   environment:
     # Astro mounts the project here; the team VM uses /opt/airflow. The DAG
     # reads this rather than hardcoding either one.
     DBT_PROJECT_DIR: /usr/local/airflow/include/dbt
+    # Reach the database by its service name: your .env says localhost, which
+    # inside this container would mean the container itself.
+    BACKEND_PG_HOST: db
+    BACKEND_PG_PORT: "5432"
+    # The local Postgres has no TLS certificate.
+    BACKEND_PG_SSLMODE: prefer
   networks:
     - default
     - finalproject

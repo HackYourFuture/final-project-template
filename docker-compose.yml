@@ -9,6 +9,10 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql
+      # Run once, when the database is first created: gives the data pipeline
+      # somewhere to publish locally. On the real database the backend's
+      # migration does this.
+      - ./data/local:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s

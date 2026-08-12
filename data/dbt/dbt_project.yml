@@ -7,11 +7,16 @@ test-paths: ["tests"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 
-# The landing volume your ingestion job writes into. Override it per team:
-#   dbt build --vars '{landing_path: /Volumes/team_a/landing/raw/postings}'
-# or set it here once your team's catalog is fixed.
+# The landing volume to read. It comes from the environment, so the same value
+# drives the ingestion job and dbt and the two cannot disagree: set LANDING_PATH
+# in data/.env and both your own runs and `dbt build` follow it. On the team's
+# Airflow it is set for the scheduled run.
+#
+# Your own runs should point at your own prefix, so rebuilding a model never
+# reads a half-written file somebody else is producing. See the README,
+# "Developing locally".
 vars:
-  landing_path: "/Volumes/CHANGE_ME/landing/raw/postings"
+  landing_path: "{{ env_var('LANDING_PATH', '/Volumes/CHANGE_ME/landing/raw/postings') }}"
 
 clean-targets:
   - "target"
