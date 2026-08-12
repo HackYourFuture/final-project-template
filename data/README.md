@@ -103,7 +103,9 @@ Slack, a pull request or an LLM prompt.
 each. Start the database first, from the repository root:
 
 ```bash
-cp .env.example .env && docker compose up -d db
+cd <repository root>
+cp .env.example .env                 # the root one: Postgres container settings
+docker compose up -d db
 pip install "psycopg[binary]"
 python scripts/db-setup.py --host localhost --port 5432 \
   --admin-user admin --admin-password password
@@ -120,8 +122,11 @@ one your pipeline publishes with.
 
 ```bash
 cd data
-cp .env.example .env      # the two values from step 1, your token, that password
+cp .env.example .env      # a different file: data/.env.example, the pipeline's
 ```
+
+Fill in the two values from step 1, your token, and the `analytics_user`
+password from step 3.
 
 **5. Sign in to Azure.** The pipeline authenticates as you locally, and as its
 managed identity in Azure. Same code, no secret either way.
