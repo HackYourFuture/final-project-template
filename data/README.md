@@ -98,21 +98,39 @@ will not show it again.
 It is yours, not your team's. Paste it only into your local `.env`, never into
 Slack, a pull request or an LLM prompt.
 
-**3. Fill in `.env`.**
+**3. Create your local database.** The backend's own script makes the
+`project_db` database, the `app` and `analytics` schemas, and a login role for
+each. Start the database first, from the repository root:
+
+```bash
+cp .env.example .env && docker compose up -d db
+pip install "psycopg[binary]"
+python scripts/db-setup.py --host localhost --port 5432 \
+  --admin-user admin --admin-password password
+```
+
+Copy the `analytics_user` password it prints. It is shown once, and it is the
+one your pipeline publishes with.
+
+> ⚠️ If this fails with `role "admin" does not exist`, something else on your
+> machine already owns port 5432, usually a Postgres you installed yourself.
+> Stop it, or give the container a different port, and use that everywhere.
+
+**4. Fill in `.env`.**
 
 ```bash
 cd data
-cp .env.example .env      # the two values from step 1, and your token
+cp .env.example .env      # the two values from step 1, your token, that password
 ```
 
-**4. Sign in to Azure.** The pipeline authenticates as you locally, and as its
+**5. Sign in to Azure.** The pipeline authenticates as you locally, and as its
 managed identity in Azure. Same code, no secret either way.
 
 ```bash
 az login
 ```
 
-**5. Check you can reach your landing zone.** Your teacher grants each team
+**6. Check you can reach your landing zone.** Your teacher grants each team
 member `Storage Blob Data Contributor` on your storage account. Owner or
 Contributor on the resource group is *not* enough: Azure separates managing a
 storage account from reading what is inside it, and this trips up nearly
@@ -126,7 +144,7 @@ az storage blob list --account-name <your storage account> \
 An `AuthorizationPermissionMismatch` here means the role is missing or has not
 propagated yet. It can take a few minutes after it is granted.
 
-**6. Install and run.**
+**7. Install and run.**
 
 ```bash
 uv sync --all-extras
@@ -145,10 +163,10 @@ SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/raw/postings',
                                 format => 'json');
 ```
 
-**7. Point dbt at your landing zone, then build.**
+**8. Point dbt at your landing zone, then build.**
 
 dbt reads `LANDING_PATH` from your `.env`, the same file your ingestion wrote
-to, so the two cannot disagree. Step 6 printed the exact value to use as its
+to, so the two cannot disagree. Step 7 printed the exact value to use as its
 last line. Then:
 
 ```bash
@@ -172,14 +190,14 @@ environment, and `uv run` does not pick up `.env` on its own.
 When staging reads your own file, you have an end to end path, and everything
 after that is shaping.
 
-**8. Run the enrichment.** It reads the mart dbt just built, classifies every
+**9. Run the enrichment.** It reads the mart dbt just built, classifies every
 posting, and writes `fct_postings_enriched` next to it.
 
 ```bash
 uv run python -m src.enrich
 ```
 
-**9. Run the tests.** They need no credentials and no network, so they are the
+**10. Run the tests.** They need no credentials and no network, so they are the
 one thing you can run before anything else works.
 
 ```bash
@@ -229,9 +247,6 @@ extension at `data/dbt` and it picks up the same profile.
 ### The last step, in Airflow
 
 ```bash
-cp .env.example .env && docker compose up -d db      # repo root, first
-python scripts/db-setup.py --host localhost --port 5432 \
-  --admin-user admin --admin-password password       # once, for the schemas
 cd data/airflow && astro dev start
 ```
 
@@ -281,9 +296,7 @@ is why `src/sync.py` composes statements with `psycopg.sql` instead.
 All three start from the repository root:
 
 ```bash
-cp .env.example .env && docker compose up -d db       # the backend's database
-python scripts/db-setup.py --host localhost --port 5432 \
-  --admin-user admin --admin-password password        # schemas and roles
+docker compose up -d db                               # from step 3, if it stopped
 docker compose build pipeline                         # the image CI will build
 cd data/airflow && astro dev start
 ```
