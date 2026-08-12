@@ -425,6 +425,28 @@ Python path, so there is no PYTHONPATH to configure. A task failing with
 `ModuleNotFoundError: src` means that mount is missing: a teacher question,
 not something to work around in the DAG.
 
+### Adding your own DAGs
+
+One pipeline lives in one file. `pipeline_dag.py` holds the whole pipeline
+because it is one DAG of four tasks in a line, and splitting four tasks across
+four files means opening four files to answer "what runs after dbt?".
+
+When you add a second pipeline, add a second file rather than a second DAG in
+this one. Name the file after its `dag_id`, so `daily_report_dag.py` defines
+`daily_report`. The reason is not tidiness: Airflow parses each file on its
+own, so a typo in your new DAG takes out only your new DAG. Put two in one file
+and one mistake stops both.
+
+Anything that is not a DAG belongs in `src/`, which the tasks import. Airflow
+re-parses everything under `dags/` every few seconds, so a helper module there
+is read over and over for no reason. `alerts.py` is the deliberate exception:
+it is DAG wiring, used by `default_args`, and it has to be importable by name
+from the dags folder.
+
+If you find yourself copying `setting()` and `secret()` into your second DAG,
+move them somewhere shared instead. That is the moment they stop belonging to
+one pipeline.
+
 ### Reading the app's data
 
 The other direction: your credential can read the backend's own tables, so a
