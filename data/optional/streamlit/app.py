@@ -7,6 +7,9 @@ streamlit and pandas are not installed by default. Install the extra first:
 
     uv sync --extra dashboard
     uv run streamlit run optional/streamlit/app.py
+
+It reads the same `.env` as everything else: point BACKEND_PG_* at the
+database you want to look at.
 """
 
 import os
@@ -14,16 +17,27 @@ import os
 import pandas as pd
 import psycopg
 import streamlit as st
+from dotenv import load_dotenv
+
+# The same .env the pipeline reads, so the dashboard needs no settings of its
+# own. In Azure there is no file and the values come from the container's
+# environment instead.
+load_dotenv()
 
 st.set_page_config(page_title="Pipeline health", page_icon="📊")
 st.title("Pipeline health")
 
+# The same BACKEND_PG_* names the sync uses. One database, one set of
+# settings: a dashboard with its own names is a dashboard that quietly points
+# at the wrong server.
 DSN = (
-    f"host={os.environ['POSTGRES_HOST']} port={os.getenv('POSTGRES_PORT', '5432')} "
-    f"dbname={os.environ['POSTGRES_DB']} user={os.environ['POSTGRES_USER']} "
-    f"password={os.environ['POSTGRES_PASSWORD']}"
+    f"host={os.environ['BACKEND_PG_HOST']} "
+    f"port={os.getenv('BACKEND_PG_PORT', '5432')} "
+    f"dbname={os.environ['BACKEND_PG_DB']} user={os.environ['BACKEND_PG_USER']} "
+    f"password={os.environ['BACKEND_PG_PASSWORD']}"
 )
-SCHEMA = os.getenv("DBT_SCHEMA", "analytics")
+# Where the pipeline publishes, which is not the schema dbt builds into.
+SCHEMA = os.getenv("BACKEND_PG_PUBLISH_SCHEMA", "analytics")
 
 
 @st.cache_data(ttl=60)
