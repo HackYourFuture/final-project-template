@@ -23,6 +23,9 @@ models:
         tests: [not_null]
       - name: tags
         description: Array of tags from the source. Becomes a JSON array once synced to the backend.
+      - name: tag_count
+        description: How many distinct tags this posting has, counted after cleaning. Zero, never null.
+        tests: [not_null]
       - name: posted_at
         description: Timestamp the posting was published at the source.
         tests: [not_null]

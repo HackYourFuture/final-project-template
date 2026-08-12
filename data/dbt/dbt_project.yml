@@ -26,5 +26,12 @@ models:
   final_project:
     staging:
       +materialized: view
+    # Views, so they cost nothing to store and you can query them while you are
+    # working out why a mart looks wrong. `ephemeral` is the other common
+    # choice: it pastes the SQL into whatever selects it, which is tidier in the
+    # warehouse but leaves you nothing to inspect when a number is off. While
+    # you are learning, being able to select from it is worth more.
+    intermediate:
+      +materialized: view
     marts:
       +materialized: table
