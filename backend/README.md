@@ -50,7 +50,7 @@ Build a runnable JAR into `target/`:
 Run it:
 
 ```bash
-java -jar target/backend-0.0.1-SNAPSHOT.jar
+java -jar target/backend-1.0.0-SNAPSHOT.jar
 ```
 
 Run the tests:
