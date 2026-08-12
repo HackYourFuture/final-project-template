@@ -15,13 +15,13 @@ WORKDIR /app
 
 # Dependencies are copied first so Docker can cache the install layer. Change
 # your source code and the rebuild stays fast; change dependencies and it does not.
+#
+# The list comes from pyproject.toml rather than being repeated here. Repeating
+# it is the trap: you add a package, it works with `uv run`, and the deployed
+# job dies with ModuleNotFoundError because the image never got it.
+RUN pip install --no-cache-dir uv
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir \
-        "requests>=2.32.0" \
-        "pydantic>=2.9.0" \
-        "python-dotenv>=1.0.0" \
-        "azure-identity>=1.19.0" \
-        "azure-storage-blob>=12.23.0"
+RUN uv pip install --system --no-cache -r pyproject.toml
 
 COPY src/ ./src/
 
