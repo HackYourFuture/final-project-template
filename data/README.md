@@ -67,7 +67,7 @@ edits, not what is missing.
 | `src/dbt_results.py` | Records every dbt run in `ops.dbt_test_runs` | No |
 | `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
 | `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
-| `tests/` | 53 unit tests, no credentials needed, under a second | Add as you build |
+| `tests/` | Unit tests, no credentials needed, under a second | Add as you build |
 | `airflow/dags/pipeline_dag.py` | The five tasks, wired in order | Only to add a step |
 | `airflow/dags/alerts.py` | Posts to Slack when any task fails | No |
 | `Dockerfile` | The one image both container jobs run | Rarely |
@@ -81,8 +81,8 @@ in place:
 - your team's storage account, Databricks catalog, SQL warehouse and secret
   scope, and a Container Apps job to run your image
 - your Airflow instance, already pulling this repository every minute, with
-  every value it needs set as an Airflow Variable
-- CI that builds your ingestion image and pushes it to your team's registry on
+  the values it needs already set
+- CI that builds the pipeline image and pushes it to your team's registry on
   every merge to `main`, with no credential stored anywhere
 - a Slack channel that receives an alert whenever a task fails
 
@@ -182,7 +182,7 @@ uv sync --extra dev
 uv run pytest
 ```
 
-Fifty-three of them, in under a second. They cover the parts that are painful
+They run in under a second. They cover the parts that are painful
 to test any other way: what happens to a malformed record, whether the job poll
 loop notices a failed container, and whether the publish swaps its tables in an
 order that never leaves the backend looking at a missing one. Add to them as
@@ -279,7 +279,11 @@ that needs it, using the machine's own identity, so nothing is stored on the VM
 and a typo fails with a 403 rather than reaching another team's data.
 
 The DAG imports the same code the containers run, from `src`, so there is one
-copy of the publish logic rather than one per place it is used.
+copy of the publish logic rather than one per place it is used. Locally the
+Astro override mounts it and puts it on `PYTHONPATH`; on your VM the same is
+done when the machine is built. If a task ever fails with
+`ModuleNotFoundError: src`, that mount is what is missing, and it is a teacher
+question rather than something to work around in the DAG.
 
 ## The mart is a contract
 
