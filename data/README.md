@@ -195,20 +195,23 @@ you go, and CI runs them on every pull request.
 ## Developing locally
 
 Everything except the two container jobs runs on your machine, against your
-own copy of the data. The isolation comes from four settings in `.env`, and
-they are the first thing to fill in:
+own copy of the data. Five settings in `.env` decide where that copy lives,
+and they are the first thing to fill in:
 
 | Setting | Yours | The scheduled run |
 |---|---|---|
-| `LANDING_PREFIX` | `dev/your-name` | `raw` |
+| `LANDING_CONTAINER` | `dev` | `landing` |
+| `LANDING_PREFIX` | `your-name` | `raw` |
 | `LANDING_PATH` | `/Volumes/<catalog>/landing/dev/your-name/postings` | `.../landing/raw/postings` |
 | `DBT_SCHEMA` | `dev_yourname` | `analytics` |
 | `BACKEND_PG_PUBLISH_SCHEMA` | `analytics_dev` | `analytics` |
 
-Your team's catalog has two volumes for this: `raw`, which the scheduled
-pipeline writes and everybody's models read, and `dev`, which is yours to
-scribble in. Nothing you do under `dev/your-name` can affect what the team's
-models see.
+This is not a naming convention you have to remember. It is what your account
+is allowed to do. You can write the `dev` container and only read `landing`.
+You can create and own `dev_` schemas and only read `analytics`. Point your
+`.env` at the production names by mistake and the run stops with a permission
+error, which is a much better afternoon than discovering at the demo that your
+test data went out to the backend.
 
 The loop, start to finish:
 
@@ -315,16 +318,21 @@ choose here.
 Raw files, not tables. A raw file is exactly what the source sent you, so when
 a column changes shape in three weeks you can re-read it and find out when.
 
-Your team's storage account has a `landing` container, registered in Unity
-Catalog as an external volume. The file the job writes as
-`landing/raw/postings/2026-08-12.json` is the file dbt reads at
+Your team's storage account has two containers, each registered in Unity
+Catalog as a volume. `landing` is the scheduled pipeline's, and the file it
+writes as `landing/raw/postings/2026-08-12.json` is the file dbt reads at
 `/Volumes/<catalog>/landing/raw/postings/`. One copy of the bytes, two ways to
-reach it. `volume_path()` returns the second form, which is what goes in
-`dbt_project.yml`.
+reach it: Azure tooling on one side, SQL on the other.
+
+`dev` is the other one, and it is where your own runs land. It appears next to
+the first as `/Volumes/<catalog>/landing/dev/`. Two containers rather than two
+folders because a permission can be given on a container and cannot be given
+on a folder: this is the difference between separation you are asked to
+observe and separation you cannot get around.
 
 One file per source per day, so a re-run replaces its own file instead of
-doubling your data. Change the layout if you like, but change `landing_path` in
-`dbt_project.yml` to match.
+doubling your data. Change the layout if you like, and change `LANDING_PATH`
+to match.
 
 **Raw means raw.** The job validates before it writes, but it lands what the
 source sent, not what validation produced. Parsing is a gate deciding whether
@@ -340,9 +348,14 @@ place with every test still passing, and nobody finds out for a week.
 plain HTTPS. `databricks-sql-connector` would do the same over Thrift and a
 much larger dependency tree.
 
-The one thing that surprises everybody: your team's service principal
-authenticates at **Microsoft Entra**, not at the Databricks workspace. The
-workspace's own `/oidc/v1/token` endpoint returns 401 for principals created
+It takes whichever credential it finds: your `DATABRICKS_TOKEN` on your
+machine, so one value covers dbt and these steps alike, and the team's service
+principal in Azure.
+
+The one thing that surprises everybody about that second case: your team's
+service principal authenticates at **Microsoft Entra**, not at the Databricks
+workspace. The workspace's own `/oidc/v1/token` endpoint returns 401 for
+principals created
 this way, and the error does not hint that you are knocking on the wrong door.
 
 ## Why there is a second container
@@ -459,8 +472,11 @@ somebody to look. Nobody looks at 6am, which is when your pipeline runs.
 
 No credentials live in this folder. `dbt/profiles.yml` is committed on purpose:
 every value in it comes from `env_var(...)`, so it holds nothing secret. Real
-values live in `.env`, which is git-ignored, in Key Vault, and in your team's
-Databricks secret scope.
+values live in `.env`, which is git-ignored, and in Key Vault.
+
+You hold exactly one credential: your own Databricks token. Your team's
+service principal, the one that can write the schemas you cannot, stays in Key
+Vault where Airflow reads it, and is not yours to copy onto a laptop.
 
 Never commit `.env`, and never paste a token or connection string into a chat
 message or an LLM prompt.
