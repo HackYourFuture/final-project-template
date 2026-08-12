@@ -5,8 +5,8 @@
 -- which file a row came from, which is the first thing you want when one day
 -- looks wrong.
 --
--- Change: rename this model and its columns to your own domain, and set
--- landing_path in dbt_project.yml to your team's volume.
+-- Change: rename this model and its columns to your own domain. The folder it
+-- reads comes from LANDING_PATH in your .env, not from anything in here.
 with
     source as (
 

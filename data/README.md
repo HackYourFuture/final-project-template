@@ -145,8 +145,9 @@ SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/raw/postings',
 
 **6. Point dbt at your landing zone, then build.**
 
-`dbt/dbt_project.yml` ships `landing_path: /Volumes/CHANGE_ME/...`. Change it to
-your own volume once, then:
+dbt reads `LANDING_PATH` from your `.env`, the same file your ingestion wrote
+to, so the two cannot disagree. Step 5 printed the exact value to use as its
+last line. Then:
 
 ```bash
 cd dbt
