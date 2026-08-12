@@ -48,29 +48,76 @@ the same job with an LLM, as a dbt model, and the interesting part is what
 changes and what does not.
 
 It runs on **serverless compute**. There is no cluster to create, and none to
-forget to stop: dbt submits the model as a job, waits about a minute, and
-writes the result. Verified on this workspace, as the team service principal
-and as a trainee.
+forget to stop: dbt submits the model as a job, waits, and writes the result.
+Measured on this workspace at 125 seconds for a first run and 85 for the next,
+as the team service principal and as a trainee.
 
 Because it is a dbt model rather than a container job, `dbt build` runs it in
 order, `ref()` resolves it, and you can put tests on its output like any other
 model. What you give up is speed while developing: a minute per run instead of
 a few seconds, which is why the ingestion path stays a container.
 
-### Switching it on
+### What it costs: nothing
 
-**1. Put your key in your team's secret scope.** It never goes in the
-repository, in `.env`, or in a log. Every member of your team can write the
-scope, and nobody outside it can read it.
+The model it calls, `openai/gpt-oss-20b:free`, is free. Not "a few cents", not
+"free trial": OpenRouter charges 0 for every model whose ID ends in `:free`,
+and you do not need a card to use one.
+
+Be precise about what is free, though. The *model* costs nothing. The
+*serverless compute* that runs the dbt model is ordinary Databricks usage, the
+same as any other model in your project, and it bills for the two minutes the
+run takes. That is small, and it is not zero.
+
+What you pay for the free model is in speed and in a shared daily allowance,
+both further down. If your team ever wants a paid model, `gpt-4.1-mini` is
+about $0.40 per million input tokens, so a few hundred job titles is a fraction
+of a cent. Ask your teacher before switching: a paid model should have a key
+with a spending limit on it.
+
+### Getting an API key
+
+Ask your teacher first, because the class may already have a key. If you are
+making your own:
+
+**Step 1:** Sign up at [openrouter.ai](https://openrouter.ai). An email address
+is enough. You do not need to add a payment method to use free models.
+
+**Step 2:** Open **Keys** in the account menu and choose **Create Key**. Name it
+after your team, for example `hyf-team-a`, so you can tell later which one to
+revoke.
+
+**Step 3:** Copy the key immediately. It is shown once, and if you lose it the
+only option is to create another one. It starts with `sk-or-`.
+
+**Step 4:** Leave the credit limit empty. It caps spending on paid models, and
+you are using a free one.
+
+> ⚠️ Treat the key like a password. Anyone holding it can spend on your account.
+> If it ever lands in a commit, a screenshot or a Slack message, delete it in
+> the OpenRouter UI and make a new one. Deleting it is a ten-second job and
+> costs you nothing.
+
+### Where the key lives
+
+In your team's Databricks secret scope, and nowhere else. Not in the repository,
+not in `data/.env`, not in the dbt project, not in a notebook cell.
 
 ```bash
 databricks secrets put-secret team_<x> openrouter-api-key
 ```
 
-Ask your teacher for the key. The model it points at, `openai/gpt-oss-20b:free`,
-costs nothing to call, and the section below explains what you give up for that.
+That opens an editor; paste the key, save, close. To check it without printing
+it, `databricks secrets list-secrets team_<x>` shows the name and the time it
+was updated, never the value. Databricks also redacts secrets from job output,
+so a stray `print()` shows `[REDACTED]` rather than your key.
 
-**2. Copy the model into the project** and tell it which scope to read:
+Every member of your team can write this scope and nobody outside it can read
+it, which is why the key goes here rather than into a file somebody has to
+remember not to commit.
+
+### Switching it on
+
+**1. Copy the model into the project** and tell it which scope to read:
 
 ```bash
 cp optional/python_model/fct_title_discipline.py dbt/models/marts/
@@ -87,7 +134,31 @@ models:
         +llm_model: openai/gpt-oss-20b:free
 ```
 
-**3. Join it in a SQL model,** the same way `src/enrich.py`'s output is joined
+**2. Run the tests**, which need no key and no network, so they tell you the
+file arrived intact before you spend a request:
+
+```bash
+uv run pytest optional/python_model
+```
+
+**3. Build it once, by hand,** and read what it wrote:
+
+```bash
+uv run dbt build --select fct_title_discipline
+```
+
+Expect roughly two minutes: most of it is serverless starting up, not the
+model thinking. Then look at the output before you build anything on it:
+
+```sql
+select discipline, count(*) from fct_title_discipline group by discipline
+```
+
+If everything came back `other`, the model did not answer in the shape the
+code expects. Check the run's log in Databricks rather than changing the
+prompt: the error names the cause.
+
+**4. Join it in a SQL model,** the same way `src/enrich.py`'s output is joined
 today:
 
 ```sql
@@ -96,11 +167,8 @@ from {{ ref('fct_postings') }} as p
 left join {{ ref('fct_title_discipline') }} as d on d.title = p.title
 ```
 
-**4. Run the tests**, which need no key and no network:
-
-```bash
-uv run pytest optional/python_model
-```
+The `coalesce` matters: a posting whose title arrived after the last run has
+no row here yet, and you want it in your mart as `other` rather than missing.
 
 ### Three decisions worth understanding before you copy it
 
@@ -115,6 +183,30 @@ classifies everything; the second usually classifies a handful.
 Drop any of the three and you are calling a paid API once per posting per day.
 On the sample source that is cents; on a real one it is the difference between
 a rounding error and a bill worth explaining.
+
+### The limits, measured
+
+Free models are rate limited, not quality limited. Numbers from actual runs
+against `openai/gpt-oss-20b:free`:
+
+| Titles in one request | Answered | Agreed with the expected discipline | Time |
+|---|---|---|---|
+| 40 | 40 | 100% | 43s |
+| 100 | 100 | 100% | 434s |
+
+The accuracy did not drop as the batch grew. The waiting did, steeply, which is
+why `BATCH_SIZE` is 40: big enough that one request does real work, small
+enough that a request comes back in under a minute.
+
+The other limits worth knowing:
+
+- **50 requests a day for the whole OpenRouter account**, or 1,000 once the
+  account has bought 10 credits. Not per team and not per key.
+- **20 requests a minute**, which batching keeps you far below.
+- **A request has no real time limit.** The `read_timeout` in the code guards
+  against a server that never answers, not one that is slow: Python applies it
+  per socket read, so a 434-second request completed under a 300-second
+  setting. What bounds a run is the dbt task timeout in the DAG.
 
 ### The daily allowance is shared, and that shapes your first run
 
