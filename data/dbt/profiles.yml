@@ -1,20 +1,37 @@
 # Every value comes from an environment variable, so this file holds no
 # secrets and is safe to commit. Set them in .env (see ../.env.example).
 #
-# catalog is your team's catalog: team_a, team_b or team_c. schema is the
-# schema dbt builds into. Give each teammate their own schema while you are
-# developing, so two people running dbt at the same time do not overwrite each
-# other's models.
+# Two targets, because who runs dbt should not be the same in both places:
+#
+#   dev   you, signed in with your browser. The default, so `dbt build` on
+#         your machine is always you. Give yourself your own DBT_SCHEMA, and
+#         nothing you rebuild can touch what the team's models read.
+#   prod  the team's service principal, used only by Airflow, which passes
+#         `--target prod`. Its credentials come from Key Vault at the moment
+#         the task runs and are never written to a file.
+#
+# The point of the split: your name is on your queries in the Databricks audit
+# log, and the production credential never sits on a laptop.
 final_project:
-  target: dev
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
   outputs:
     dev:
       type: databricks
       host: "{{ env_var('DATABRICKS_HOST') | replace('https://', '') }}"
       http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
-      # Your team has its own Databricks identity, not a personal token. Both
-      # values come from Key Vault: fp-databricks-client-id-team-<x> and
-      # fp-databricks-client-secret-team-<x>.
+      # No client_id and no client_secret on purpose. dbt opens a browser, you
+      # sign in as yourself, and the token is cached for the next run.
+      auth_type: external-browser
+      catalog: "{{ env_var('DATABRICKS_CATALOG') }}"
+      # Yours alone while you are developing, so two people running dbt at the
+      # same time do not overwrite each other's models.
+      schema: "{{ env_var('DBT_SCHEMA') }}"
+      threads: 4
+
+    prod:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') | replace('https://', '') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
       auth_type: oauth
       client_id: "{{ env_var('DATABRICKS_CLIENT_ID') }}"
       client_secret: "{{ env_var('DATABRICKS_CLIENT_SECRET') }}"

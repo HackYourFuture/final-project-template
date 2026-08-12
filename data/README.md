@@ -89,22 +89,15 @@ What you do once, on your own machine:
 name and your catalog. Everything else is the same for all three teams and is
 filled in already.
 
-You also need your team's Databricks client id and secret, which dbt and the
-publish step use. Do not ask for those: read them yourself, so they are never
-pasted into a chat message.
-
-```bash
-az keyvault secret show --vault-name kv-hyf-data \
-  --name fp-databricks-client-id-team-<x> --query value -o tsv
-az keyvault secret show --vault-name kv-hyf-data \
-  --name fp-databricks-client-secret-team-<x> --query value -o tsv
-```
+There is no third value and no credential to fetch. Everything you run signs
+you in as yourself: dbt opens a browser once, and the other steps use the same
+`az login` as the landing zone.
 
 **2. Fill in `.env`.**
 
 ```bash
 cd data
-cp .env.example .env      # then paste in the four values from step 1
+cp .env.example .env      # then paste in the two values from step 1
 ```
 
 **3. Sign in to Azure.** The pipeline authenticates as you locally, and as its
@@ -161,10 +154,10 @@ uv run --env-file ../.env dbt build
 `--env-file` matters: `dbt/profiles.yml` reads every value from the
 environment, and `uv run` does not pick up `.env` on its own.
 
-> ⚠️ If `DATABRICKS_CLIENT_ID` or `DATABRICKS_CLIENT_SECRET` is empty, dbt does
-> not fail. It falls back to interactive sign-in and waits for a browser that
-> never opens, so the command simply hangs. If `dbt build` produces no output
-> for a minute, check those two values first.
+> 💡 The first `dbt build` opens a browser and asks you to sign in. That is
+> the `dev` target working as intended: your queries run as you, and the
+> token is cached, so it happens once. Airflow passes `--target prod`
+> instead, which uses the team's service principal.
 
 When staging reads your own file, you have an end to end path, and everything
 after that is shaping.

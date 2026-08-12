@@ -40,9 +40,11 @@ DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/airflow/include/dbt")
 # dbt-core <1.10.10, so a wildcard stops resolving on the next patch release.
 # Bump the two together. uvx, because the Airflow image ships a newer Python
 # than stable dbt-core supports.
+# `--target prod` picks the service principal. The default target is `dev`,
+# which signs in through a browser: right on a laptop, impossible here.
 DBT_COMMAND = (
     "uvx --python 3.11 --from 'dbt-core==1.10.9' --with 'dbt-databricks==1.10.11' "
-    f"dbt build --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
+    f"dbt build --target prod --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
 )
 
 

@@ -21,19 +21,13 @@ def test_default_run_date_is_todays_utc_date():
 def test_a_dev_prefix_keeps_your_runs_out_of_the_teams_files():
     """The isolation the whole local loop depends on: your ingestion writes
     somewhere the scheduled pipeline never reads."""
-    assert (
-        storage.blob_path("postings", "2026-08-12", "dev/alex")
-        == "dev/alex/postings/2026-08-12.json"
-    )
-    assert (
-        storage.volume_path("team_a", "postings", "dev/alex")
-        == "/Volumes/team_a/landing/dev/alex/postings"
-    )
+    assert storage.blob_path("postings", "2026-08-12", "alex") == "alex/postings/2026-08-12.json"
 
 
-def test_volume_path_matches_the_blob_layout():
-    """The same bytes, named the way dbt reaches them."""
-    assert storage.volume_path("team_a", "postings") == "/Volumes/team_a/landing/raw/postings"
+def test_the_two_containers_are_named_apart():
+    """Not tidiness: `landing` is the one you are not allowed to write."""
+    assert storage.PRODUCTION_CONTAINER == "landing"
+    assert storage.DEVELOPMENT_CONTAINER == "dev"
 
 
 def test_landing_nothing_raises():
@@ -73,3 +67,26 @@ def test_payload_is_one_json_object_per_line(monkeypatch):
     assert captured["url"] == "https://sthyffpteama.blob.core.windows.net"
     # Re-running a day must replace that day's file, not fail or duplicate it.
     assert captured["overwrite"] is True
+
+
+def test_the_container_is_chosen_by_the_caller(monkeypatch):
+    """A local run must land in `dev`, which is the only one it can write."""
+    captured = {}
+
+    class FakeBlob:
+        def upload_blob(self, payload, overwrite):
+            pass
+
+    class FakeService:
+        def __init__(self, url, credential):
+            pass
+
+        def get_blob_client(self, container, blob):
+            captured["container"] = container
+            return FakeBlob()
+
+    monkeypatch.setattr(storage, "BlobServiceClient", FakeService)
+    monkeypatch.setattr(storage, "DefaultAzureCredential", lambda: "credential")
+
+    storage.land_raw_json("sthyffpteama", "alex/postings/x.json", [{"a": 1}], container="dev")
+    assert captured["container"] == "dev"

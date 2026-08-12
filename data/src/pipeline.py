@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from dotenv import load_dotenv
 
 from .ingest import fetch_raw, parse_records
-from .storage import blob_path, land_raw_json, volume_path
+from .storage import PRODUCTION_CONTAINER, PRODUCTION_PREFIX, blob_path, land_raw_json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +38,7 @@ class Config:
     source_name: str
     storage_account: str
     databricks_catalog: str
+    landing_container: str
     landing_prefix: str
 
 
@@ -56,8 +57,10 @@ def load_config() -> Config:
         source_name=os.getenv("SOURCE_NAME", "source"),
         storage_account=required("STORAGE_ACCOUNT"),
         databricks_catalog=os.getenv("DATABRICKS_CATALOG", "<your catalog>"),
-        # "raw" in Azure, "dev/<your name>" on your machine.
-        landing_prefix=os.getenv("LANDING_PREFIX", "raw"),
+        # The scheduled run writes `landing/raw`. Your own runs write
+        # `dev/<your name>`, a different container that you alone can write.
+        landing_container=os.getenv("LANDING_CONTAINER", PRODUCTION_CONTAINER),
+        landing_prefix=os.getenv("LANDING_PREFIX", PRODUCTION_PREFIX),
     )
 
 
@@ -86,13 +89,14 @@ def run(run_date: str | None = None) -> int:
         account=config.storage_account,
         path=blob_path(config.source_name, run_date, config.landing_prefix),
         records=records,
+        container=config.landing_container,
     )
 
     logger.info(
         "Pipeline finished: %d landed, %d rejected, readable at %s",
         landed,
         rejected,
-        volume_path(config.databricks_catalog, config.source_name, config.landing_prefix),
+        os.getenv("LANDING_PATH", "(set LANDING_PATH so dbt reads what you just wrote)"),
     )
     return landed
 
