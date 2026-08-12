@@ -7,6 +7,7 @@ reason it is written that way.
 Copy this next to the model file and run `uv run pytest optional/python_model`.
 """
 
+import io
 import json
 import urllib.error
 
@@ -85,18 +86,24 @@ def test_an_answer_with_no_json_raises():
 
 
 def test_being_rate_limited_says_so_in_words(monkeypatch):
-    """429 is the failure teams will actually meet, on a shared daily quota.
+    """429 is the failure teams will actually meet, and it has two causes.
 
-    `HTTP Error 429: Too Many Requests` in an Airflow log sends someone
-    looking for a bug in their own code, so the message names the real cause.
+    Either the account spent its daily allowance, or the free model is
+    throttled upstream for reasons nobody here controls. Both arrive as
+    `HTTP Error 429: Too Many Requests`, which sends someone looking for a
+    bug in their own code, so the message carries what OpenRouter said.
     """
+    upstream = b'{"error":{"message":"gpt-oss-20b:free is temporarily rate-limited upstream"}}'
 
     def refuse(*_args, **_kwargs):
-        raise urllib.error.HTTPError(url="", code=429, msg="", hdrs=None, fp=None)
+        raise urllib.error.HTTPError(url="", code=429, msg="", hdrs=None, fp=io.BytesIO(upstream))
 
     monkeypatch.setattr("urllib.request.urlopen", refuse)
-    with pytest.raises(ClassificationError, match="50 requests a day"):
+    with pytest.raises(ClassificationError) as raised:
         openrouter("not-a-real-key")("classify these")
+    message = str(raised.value)
+    assert "throttled upstream" in message, "the cause you cannot fix must be named"
+    assert "temporarily rate-limited upstream" in message, "pass through what the API said"
 
 
 def test_the_prompt_names_the_allowed_disciplines_and_the_titles():

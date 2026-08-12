@@ -136,15 +136,18 @@ def openrouter(api_key: str, model: str = MODEL, read_timeout: int = 120):
             with urllib.request.urlopen(request, timeout=read_timeout) as response:
                 body = json.load(response)
         except urllib.error.HTTPError as error:
-            # 429 is the one you will actually meet, and the default message
-            # ("HTTP Error 429") tells you nothing about why. On the free tier
-            # the daily allowance belongs to the whole OpenRouter account, so
-            # this usually means another team spent it, not that you looped.
+            # 429 is the one you will actually meet, and it has two very
+            # different causes that "HTTP Error 429" hides. Either the account
+            # spent its 50 free requests for the day, or the free model is
+            # throttled upstream, which happens without you doing anything and
+            # can clear in minutes. The body says which, so pass it through
+            # instead of guessing.
             if error.code == 429:
                 raise ClassificationError(
-                    "OpenRouter refused the request: rate limited (429). The free "
-                    "tier allows 50 requests a day for the whole account, shared "
-                    "between teams. Wait, or switch to a paid model."
+                    f"OpenRouter refused the request (429). Either the account's "
+                    f"50 free requests for today are gone, or the model is "
+                    f"temporarily throttled upstream, which is not your doing and "
+                    f"usually clears. OpenRouter said: {error.read().decode()[:300]}"
                 ) from error
             raise ClassificationError(f"OpenRouter returned {error.code}") from error
         return body["choices"][0]["message"]["content"]
