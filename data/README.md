@@ -267,12 +267,18 @@ is what stops it.
 and you have set `APP_INBOUND_TABLE`. A skipped task is honest; a red DAG on
 day one teaches nothing.
 
-Every setting comes from an Airflow Variable, or an environment variable of the
-same name, read when the task runs. Your instance already has them:
+Every setting lives in the Airflow UI, under **Admin -> Variables**, and is
+read when the task runs. You are an admin on your team's instance, so changing
+where the pipeline points is a change you make yourself, in one place your
+whole team can see, with no deploy:
 
 `TEAM`, `AZURE_SUBSCRIPTION`, `AZURE_RESOURCE_GROUP`, `ACA_INGEST_JOB`,
 `ACA_ENRICH_JOB`, `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`,
-`DATABRICKS_CATALOG`, `DBT_SCHEMA`, `BACKEND_PG_HOST`, `BACKEND_PG_DB`.
+`DATABRICKS_CATALOG`, `DBT_SCHEMA`, `AZURE_TENANT_ID`, `BACKEND_PG_HOST`,
+`BACKEND_PG_DB`, and `APP_INBOUND_TABLE` once the backend exposes a view.
+
+They are set for you when your team is provisioned. Miss one and the task that
+needs it fails saying which one, rather than doing something surprising.
 
 Secrets are not among them. Each one is fetched from Key Vault inside the task
 that needs it, using the machine's own identity, so nothing is stored on the VM
