@@ -16,4 +16,5 @@ springdoc:
 scalar:
   enabled: true
   path: /api/docs
+  url: ${springdoc.api-docs.path}
 
