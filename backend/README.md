@@ -8,23 +8,39 @@ A Spring Boot REST API template for the HackYourFuture final project.
 
 ## Quick start
 
-You need **JDK 25** and a PostgreSQL database (in Docker, in the cloud, or installed locally). Maven comes with the project via the `mvnw` wrapper.
+You need **JDK 25**, **Python 3** and a PostgreSQL database (in Docker, in the cloud, or installed locally). Maven comes with the project via the `mvnw` wrapper.
 
-Start a database — the defaults expect `mydb` on `localhost:5432`, user `admin`, password `password`:
+Three steps: start a database, create the schemas and roles, then run the app as `app_user`.
+
+**1. Start a database.** Its `admin` / `password` account is a superuser, used only for the setup in step 2:
 
 ```bash
-docker run --name hyf-postgres -e POSTGRES_DB=mydb -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:17
+docker run --name hyf-postgres -e POSTGRES_DB=postgres -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:18
 ```
 
-Run the app:
+**2. Create the database, schemas and roles.** [`db-setup.py`](../scripts/db-setup.py) creates the `project_db` database, an `app` and an `analytics` schema inside it, and one login role per schema — `app_user` and `analytics_user` — each owning its own schema and holding read-only access to the other:
 
 ```bash
-./mvnw spring-boot:run
+pip install "psycopg[binary]"
+```
+
+```bash
+python ../scripts/db-setup.py --host localhost --port 5432 --admin-user admin --admin-password password
+```
+
+`admin` / `password` here are the container's credentials from step 1. The script prints a generated password per role — **copy the `app_user` one, it is shown only once.** Re-running is safe: it changes nothing that already exists, and asks before replacing an existing role's password.
+
+**3. Run the app as `app_user`,** never as `admin`. Paste the password from step 2:
+
+```bash
+DB_URL='jdbc:postgresql://localhost:5432/project_db?currentSchema=app' DB_USER=app_user DB_PASSWORD='<app_user password>' ./mvnw spring-boot:run
 ```
 
 Open the API docs at **http://localhost:8080/api/docs**
 
-On Windows use `mvnw.cmd`. Every setting has a working default, so nothing needs configuring to get started.
+`app_user` owns the `app` schema, so Flyway creates its history table and `app.users` there on startup with no admin rights involved. Keep `?currentSchema=app` in the URL — the repository SQL uses unqualified table names and resolves them through it.
+
+On Windows use `mvnw.cmd`. Setting the three `DB_*` variables once in your IDE's run configuration (or your shell profile) saves repeating them.
 
 ---
 
@@ -59,7 +75,7 @@ Run the tests:
 ./mvnw test
 ```
 
-> `BackendApplicationTests.contextLoads()` boots the whole Spring context, so it needs a reachable database just like the app does.
+> `BackendApplicationTests.contextLoads()` boots the whole Spring context, so it needs a reachable database — set the same three `DB_*` variables as in [Quick start](#quick-start) step 3.
 
 Check code style with Checkstyle ([`checkstyle.xml`](checkstyle.xml)):
 
@@ -90,7 +106,7 @@ docker pull ghcr.io/<org>/backend:latest
 Run it, pointing at your database:
 
 ```bash
-docker run -p 8080:8080 -e DB_URL=jdbc:postgresql://my-db-host:5432/mydb -e DB_USER=admin -e DB_PASSWORD=secret ghcr.io/<org>/backend:latest
+docker run -p 8080:8080 -e DB_URL='jdbc:postgresql://my-db-host:5432/project_db?currentSchema=app' -e DB_USER=app_user -e DB_PASSWORD=secret ghcr.io/<org>/backend:latest
 ```
 
 Two things to watch:
@@ -106,7 +122,7 @@ All configuration lives in [`application.yaml`](src/main/resources/application.y
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/mydb` | JDBC URL, must start with `jdbc:postgresql://` |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/mydb?currentSchema=app` | JDBC URL, must start with `jdbc:postgresql://`. Keep `?currentSchema=app` |
 | `DB_USER` | `admin` | Database username |
 | `DB_PASSWORD` | `password` | Database password |
 | `PORT` | `8080` | Port the server listens on |
@@ -114,7 +130,7 @@ All configuration lives in [`application.yaml`](src/main/resources/application.y
 
 `application-dev.yaml` and `application-prod.yaml` layer on top when the matching profile is active. They only set logging levels right now — put anything environment-specific there.
 
-> The defaults are real credentials for a local throwaway database. In production always override them with environment variables, and never commit real secrets.
+> **The three `DB_*` defaults are a fallback, not the setup described in [Quick start](#quick-start).** They name a database no longer created by these instructions, and an admin account the app should not use. Always run with `project_db` and the `app_user` credentials from `db-setup.py`, locally and in production, and never commit real secrets.
 
 Any Spring property can be set this way: upper-case it and replace `.` with `_`, so `server.port` becomes `SERVER_PORT`.
 
@@ -248,6 +264,8 @@ The `user` package is your reference — deliberately small and complete.
 |---|---|
 | `Failed to configure a DataSource: 'url' attribute is not specified` | Config files missing from `target/classes`. Run `./mvnw clean package`, or Rebuild Project in IntelliJ — recompiling a single class doesn't copy resources |
 | `Connection refused` on port 5432 | PostgreSQL isn't running — start the container from [Quick start](#quick-start) |
+| `relation "users" does not exist`, or Flyway hits `permission denied for schema public` | `?currentSchema=app` missing from `DB_URL`, so unqualified names resolve to `public` — where `app_user` deliberately has no rights |
+| `password authentication failed for user "app_user"` | Wrong or stale password. Re-run `db-setup.py` and answer `y` when it offers to reset, then use the password it prints |
 | `Migration checksum mismatch` | An applied migration was edited. Revert it and add a new `V…` file |
 | `403 Forbidden` on your new endpoint | Not listed in `SecurityConfig`; anything unlisted requires authentication |
 | Endpoint missing from `/api/docs` | Not annotated `@RestController`, or outside the base package |
