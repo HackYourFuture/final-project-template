@@ -1,6 +1,6 @@
 # HackYourFuture Final Project
 
-> **Using this template?** Everything marked **TODO** is yours to fill in or delete. .
+> **Using this template?** Everything marked **TODO** is yours to fill in or delete.
 
 This is our final project for the [HackYourFuture program](https://hackyourfuture.net/program), built as a
 team with three roles — frontend, backend, and data engineering. We worked in an agile way, in short
