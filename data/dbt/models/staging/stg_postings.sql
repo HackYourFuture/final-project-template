@@ -5,7 +5,7 @@
 -- which file a row came from, which is the first thing you want when one day
 -- looks wrong.
 --
--- TODO: rename this model and its columns to your own domain, and set
+-- Change: rename this model and its columns to your own domain, and set
 -- landing_path in dbt_project.yml to your team's volume.
 with source as (
 
@@ -23,7 +23,7 @@ with source as (
 renamed as (
 
     select
-        -- TODO: replace these with your source's fields. Keep the pattern:
+        -- Change: replace these with your source's fields. Keep the pattern:
         -- rename to your own names here, so nothing downstream depends on
         -- what the API happened to call things.
         slug                        as posting_id,

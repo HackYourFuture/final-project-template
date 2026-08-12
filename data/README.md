@@ -1,29 +1,40 @@
 # Final Project Data Pipeline
 
-The starting shape for the data half of the final project. It gives you the
-folders, the wiring, and the conventions. It does not give you a working
-pipeline: the parts that matter are yours to write, and they are marked `TODO`
-with a docstring saying what each one has to do.
+The data half of the final project. **It runs end to end as it stands**, against
+a public job board, on your team's own infrastructure. Nothing here is a stub
+waiting to be filled in.
 
-## The pipeline you are building
+That is deliberate. You learn more from a pipeline that works and has to be
+changed than from a set of empty functions: you can run it on day one, see real
+rows arrive, break something, and watch which test catches it. Your job is to
+make it yours, which is a different and more interesting problem than making it
+exist.
+
+## The pipeline
 
 ```mermaid
 flowchart LR
     API["Source API"] --> ACA["Container Apps job<br/>fetch and validate"]
     ACA --> VOL[("Landing zone<br/>raw JSON files")]
     VOL --> DBT["dbt on Databricks<br/>staging and marts"]
-    DBT --> PG[("Backend Postgres<br/>analytics schema")]
+    DBT --> EN["Container Apps job<br/>enrichment"]
+    EN --> PG[("Backend Postgres<br/>analytics schema")]
     PG --> BE["backend/"]
     BE -.->|app schema| DBT
     AF["Airflow<br/>daily"] -.-> ACA
     AF -.-> DBT
+    AF -.-> EN
     AF -.-> PG
     AF -.->|on failure| SL["Slack"]
 ```
 
 Every team runs this shape: ingestion in a container, raw files in your team's
-landing zone, dbt building models in your team's catalog, and Airflow
-publishing the finished mart into the database the backend reads.
+landing zone, dbt building and testing models in your team's catalog, a second
+container adding what SQL cannot express, and Airflow publishing the finished
+mart into the database the backend reads.
+
+Both container jobs run the same image. They differ only in the command, which
+is why there is one thing to build and one tag to keep track of.
 
 Your raw files live in your team's own storage account, in a container called
 `landing`. That same container is registered in Unity Catalog as a volume, so
@@ -37,23 +48,30 @@ backend reads. The backend exposes views in `app`, which you read. Neither side
 reads the other's internal tables, so a migration on their side cannot silently
 break your DAG.
 
-## What you get, and what you write
+## What is where
 
-| Path | State |
-|---|---|
-| `src/config.py` | **Done.** Reads settings from the environment and fails loudly when one is missing |
-| `src/models.py` | **Example.** A Pydantic model for job postings. Replace it with your source's shape |
-| `src/ingest.py` | **Done.** Calls the API, validates, counts rejects |
-| `src/storage.py` | **Done.** Lands raw JSON in your team's landing zone |
-| `src/sync.py` | **You write it.** Publish a mart into the backend's database |
-| `src/pipeline.py` | **Done.** Wires fetch, validate and land together |
-| `dbt/models/staging/` | **Skeleton.** Reads the volume with `read_files`. Rename to your domain |
-| `dbt/models/marts/fct_postings.sql` | **Skeleton.** This is the contract with the backend |
-| `dbt/tests/` | **Example.** Two custom tests, including a zero-row check |
-| `airflow/dags/pipeline_dag.py` | **Skeleton.** Three tasks wired in order, bodies empty |
-| `airflow/dags/alerts.py` | **Done.** Posts to Slack when any task fails |
-| `Dockerfile` | **Done.** The image you push to Azure Container Registry |
-| `optional/` | A Streamlit operations dashboard. Not required |
+Everything below works. The "change this" column says what a team normally
+edits, not what is missing.
+
+| Path | What it does | Change this? |
+|---|---|---|
+| `src/config.py` | Reads settings from the environment, fails loudly when one is missing | Only to add a setting |
+| `src/models.py` | A Pydantic model for job postings | Yes: your source's shape |
+| `src/ingest.py` | Calls the API, validates, counts rejects | The parsing, if your source is nested |
+| `src/storage.py` | Lands raw JSON in your team's landing zone | Rarely |
+| `src/pipeline.py` | The ingestion job: fetch, validate, land | Rarely |
+| `src/enrich.py` | The enrichment job: classifies each posting in Python | Yes: this is your domain logic |
+| `src/warehouse.py` | Runs SQL against your warehouse over HTTP | No |
+| `src/sync.py` | Publishes the mart into the backend's database, atomically | Rarely |
+| `src/aca.py` | Starts a container job and waits for it | No |
+| `src/dbt_results.py` | Records every dbt run in `ops.dbt_test_runs` | No |
+| `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
+| `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
+| `tests/` | 53 unit tests, no credentials needed, under a second | Add as you build |
+| `airflow/dags/pipeline_dag.py` | The five tasks, wired in order | Only to add a step |
+| `airflow/dags/alerts.py` | Posts to Slack when any task fails | No |
+| `Dockerfile` | The one image both container jobs run | Rarely |
+| `optional/` | A Streamlit operations dashboard. Not required | As you like |
 
 ## Setup
 
@@ -149,6 +167,27 @@ environment, and `uv run` does not pick up `.env` on its own.
 When staging reads your own file, you have an end to end path, and everything
 after that is shaping.
 
+**7. Run the enrichment.** It reads the mart dbt just built, classifies every
+posting, and writes `fct_postings_enriched` next to it.
+
+```bash
+uv run python -m src.enrich
+```
+
+**8. Run the tests.** They need no credentials and no network, so they are the
+one thing you can run before anything else works.
+
+```bash
+uv sync --extra dev
+uv run pytest
+```
+
+Fifty-three of them, in under a second. They cover the parts that are painful
+to test any other way: what happens to a malformed record, whether the job poll
+loop notices a failed container, and whether the publish swaps its tables in an
+order that never leaves the backend looking at a missing one. Add to them as
+you go, and CI runs them on every pull request.
+
 ### Running the whole stack locally
 
 All three start from the repository root:
@@ -170,12 +209,13 @@ authenticates as you.
 ## Making it yours
 
 The template ships a job-postings example so the shape is concrete. Swapping in
-your team's source is four edits:
+your team's source is five edits:
 
 1. `.env`: point `SOURCE_API_URL` and `SOURCE_NAME` at your source.
 2. `src/models.py`: change the model to match your records.
 3. `dbt/models/`: rename the models and columns to your domain.
 4. `dbt/models/marts/_fct_postings.yml`: rewrite the contract.
+5. `src/enrich.py`: replace the classifier with whatever your product needs.
 
 Do this in your first two days. Everything after that builds on the shape you
 choose here.
@@ -184,12 +224,52 @@ choose here.
 > confirm you can parse it. An idea you love with a source you cannot reach is
 > worth less than a plain idea that works.
 
+## Why there is a second container
+
+dbt already runs SQL against the warehouse, so anything expressible as SQL
+belongs in a dbt model, where it is tested, documented and rebuilt with
+everything else. The enrichment job exists for the work that is not SQL.
+
+Here it reads each job title and decides which discipline the posting belongs
+to. As SQL that is a hundred-line `CASE` nobody dares change; as Python it is a
+dictionary with unit tests, and the day you replace it with a real model or a
+call to another service, only `src/enrich.py` changes.
+
+Keep that seam. Things that belong in the container rather than in dbt: calling
+another service, anything with a library behind it, and anything you want to
+test with `pytest` rather than with a dbt test.
+
+## What runs in Airflow
+
+Five tasks: `ingest` and `inbound_sync` in parallel, then `dbt_build`, then
+`enrich`, then `publish_to_backend`. Ordering is the point: publishing a mart
+that failed its own tests is worse than publishing nothing, and the dependency
+is what stops it.
+
+`inbound_sync` skips until the backend has exposed a view in its `app` schema
+and you have set `APP_INBOUND_TABLE`. A skipped task is honest; a red DAG on
+day one teaches nothing.
+
+Every setting comes from an Airflow Variable, or an environment variable of the
+same name, read when the task runs. Your instance already has them:
+
+`TEAM`, `AZURE_SUBSCRIPTION`, `AZURE_RESOURCE_GROUP`, `ACA_INGEST_JOB`,
+`ACA_ENRICH_JOB`, `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`,
+`DATABRICKS_CATALOG`, `DBT_SCHEMA`, `BACKEND_PG_HOST`, `BACKEND_PG_DB`.
+
+Secrets are not among them. Each one is fetched from Key Vault inside the task
+that needs it, using the machine's own identity, so nothing is stored on the VM
+and a typo fails with a 403 rather than reaching another team's data.
+
+The DAG imports the same code the containers run, from `src`, so there is one
+copy of the publish logic rather than one per place it is used.
+
 ## The mart is a contract
 
-`fct_postings` is what the backend reads. Airflow copies it into their database
-after dbt succeeds, so whatever you select there is what they get. Adding a
-column is safe. Renaming or removing one breaks them, so agree it first and
-change both sides at once.
+`fct_postings` is what dbt builds and `fct_postings_enriched` is what gets
+published, under the name `analytics.fct_postings` in the backend's database.
+Adding a column is safe. Renaming or removing one breaks them, so agree it
+first and change both sides at once.
 
 Every column is documented in `dbt/models/marts/_fct_postings.yml`. Hand that
 file to the backend trainees on day one and they can write endpoints before

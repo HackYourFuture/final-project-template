@@ -7,7 +7,7 @@
 -- Airflow copies this table into the backend's database after dbt succeeds, so
 -- whatever you select here is what they get.
 --
--- TODO: rename to your domain and decide the grain. Write one sentence in
+-- Change: rename to your domain and decide the grain. Write one sentence in
 -- _fct_postings.yml saying what one row means. If you cannot write that
 -- sentence, the mart is not ready.
 with postings as (

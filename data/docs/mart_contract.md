@@ -44,6 +44,13 @@ The backend reads the mart directly from Postgres. It does not re-implement
 the transformations, and the data pipeline does not expose HTTP endpoints.
 Each side does one job.
 
+Three names, one table. dbt builds `fct_postings` in the warehouse. The
+enrichment job reads it, adds its columns, and writes `fct_postings_enriched`
+next to it. Airflow publishes that into the backend's database as
+`analytics.fct_postings`. The backend only ever sees the last of the three, so
+the contract is the enriched shape: `_fct_postings.yml` plus whatever
+`src/enrich.py` adds.
+
 If the backend needs a shape the mart does not have, the answer is a new mart
 model, not a join written in Java. Business logic lives in dbt, where it is
 tested and documented.
