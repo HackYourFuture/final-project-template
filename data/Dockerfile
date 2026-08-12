@@ -1,7 +1,11 @@
 # Container image for the ingestion pipeline.
 #
 # Build:  docker build -t final-project-data .
-# Run:    docker run --rm --env-file .env final-project-data
+#
+# Running it on your own machine will not authenticate: there is no `az login`
+# and no Azure metadata service inside a container, so DefaultAzureCredential
+# has nothing to use. The image gets its identity from Azure when the Container
+# Apps job runs it. Locally, run `uv run python -m src.pipeline` instead.
 #
 # This is the image you push to Azure Container Registry and run as a
 # Container Apps Job, exactly as in Week 6.

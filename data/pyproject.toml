@@ -2,7 +2,13 @@
 name = "final-project-data"
 version = "0.1.0"
 description = "Data pipeline for the HYF final project"
-requires-python = ">=3.11"
+# Upper bound on purpose. uv installs the newest interpreter that satisfies
+# this, and dbt-core 1.10.9 cannot run on 3.13 or later: it fails while loading
+# with "UnserializableField: Field schema ... is not serializable" from
+# mashumaro, which says nothing about Python versions. Without the bound, a
+# fresh `uv sync` on a current machine picks 3.14 and the documented first
+# `dbt build` dies before it connects to anything.
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "requests>=2.32.0",
     "pydantic>=2.9.0",

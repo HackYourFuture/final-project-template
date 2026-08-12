@@ -74,6 +74,17 @@ What you do once, on your own machine:
 account name, your catalog, your SQL warehouse path, and your team letter.
 Everything else is the same for all three teams and is already filled in.
 
+You also need your team's Databricks client id and secret, which dbt and the
+publish step use. Do not ask for those: read them yourself, so they are never
+pasted into a chat message.
+
+```bash
+az keyvault secret show --vault-name kv-hyf-data \
+  --name fp-databricks-client-id-team-<x> --query value -o tsv
+az keyvault secret show --vault-name kv-hyf-data \
+  --name fp-databricks-client-secret-team-<x> --query value -o tsv
+```
+
 **2. Fill in `.env`.**
 
 ```bash
@@ -128,8 +139,12 @@ uv run --env-file ../.env dbt build
 ```
 
 `--env-file` matters: `dbt/profiles.yml` reads every value from the
-environment, and `uv run` does not pick up `.env` on its own, so without it dbt
-has no credentials and fails with an empty host.
+environment, and `uv run` does not pick up `.env` on its own.
+
+> ⚠️ If `DATABRICKS_CLIENT_ID` or `DATABRICKS_CLIENT_SECRET` is empty, dbt does
+> not fail. It falls back to interactive sign-in and waits for a browser that
+> never opens, so the command simply hangs. If `dbt build` produces no output
+> for a minute, check those two values first.
 
 When staging reads your own file, you have an end to end path, and everything
 after that is shaping.
@@ -140,9 +155,17 @@ All three start from the repository root:
 
 ```bash
 cp .env.example .env && docker compose up -d db       # the backend's database
-docker compose run --rm pipeline                      # ingestion, as Azure runs it
+docker compose build pipeline                         # the image CI will build
 cd data/airflow && cp .env.example .env && astro dev start
 ```
+
+Build the image locally, but do not expect to run it locally. Inside the
+container there is no `az login` and no Azure metadata service, so
+`DefaultAzureCredential` has nothing to authenticate with and the run ends in a
+wall of "credential unavailable" messages. That is correct behaviour: the image
+gets its identity from Azure when the Container Apps job runs it. To exercise
+the ingestion on your machine, use `uv run python -m src.pipeline`, which
+authenticates as you.
 
 ## Making it yours
 
