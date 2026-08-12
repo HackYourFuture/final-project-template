@@ -28,3 +28,5 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 ## Lint
 
 You can run the linter with `npm run lint` and format files with `npm run format`.
+
+To automatically fix lint issues, run `npm run lint:fix`.

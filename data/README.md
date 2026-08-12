@@ -44,8 +44,8 @@ the bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
 
 The two tracks meet in the backend's database, which has one schema per side.
 You write marts into `analytics`, which the backend reads. The backend writes
-`public`, which you can read. Neither side can write to the other's schema, so
-a stray publish cannot corrupt the application.
+`app`, which you can read. Neither side can write to the other's, and that is
+two Postgres roles rather than an agreement.
 
 ## What is where
 
@@ -204,7 +204,7 @@ and they are the first thing to fill in:
 | `LANDING_PREFIX` | `your-name` | `raw` |
 | `LANDING_PATH` | `/Volumes/<catalog>/landing/dev/your-name/postings` | `.../landing/raw/postings` |
 | `DBT_SCHEMA` | `dev_yourname` | `analytics` |
-| `BACKEND_PG_PUBLISH_SCHEMA` | `analytics_dev` | `analytics` |
+| `BACKEND_PG_HOST` | your own Postgres in Docker | the backend's database |
 
 This is not a naming convention you have to remember. It is what your account
 is allowed to do. You can write the `dev` container and only read `landing`.
@@ -230,6 +230,8 @@ extension at `data/dbt` and it picks up the same profile.
 
 ```bash
 cp .env.example .env && docker compose up -d db      # repo root, first
+python scripts/db-setup.py --host localhost --port 5432 \
+  --admin-user admin --admin-password password       # once, for the schemas
 cd data/airflow && astro dev start
 ```
 
@@ -248,8 +250,8 @@ docker exec -it $(docker ps -qf name=scheduler) \
 ```
 
 It reads `<catalog>.dev_yourname.fct_postings_enriched` and writes
-`analytics_dev.fct_postings` in the compose database, which `data/local/`
-creates when the database first starts. `dbt_build` runs the same way. The
+`analytics.fct_postings` in your own Postgres, the one `scripts/db-setup.py`
+created. `dbt_build` runs the same way. The
 `ingest` and `enrich` tasks do not: they start Container Apps jobs, which
 needs the VM's identity, so run those two as the scripts above.
 
@@ -280,6 +282,8 @@ All three start from the repository root:
 
 ```bash
 cp .env.example .env && docker compose up -d db       # the backend's database
+python scripts/db-setup.py --host localhost --port 5432 \
+  --admin-user admin --admin-password password        # schemas and roles
 docker compose build pipeline                         # the image CI will build
 cd data/airflow && astro dev start
 ```
@@ -421,11 +425,16 @@ read.
 The two tracks meet in the backend's database, which has one schema per side:
 
 - **`analytics`** — you write, the backend reads. Your published marts.
-- **`public`** — the backend writes, you read. Their operational tables.
+- **`app`** — the backend writes, you read. Their operational tables.
 
-Neither side can write to the other's schema. That is what stops a stray
-publish from corrupting the application, and stops a backend deploy from
-overwriting your marts.
+There is a login role per schema, `analytics_user` and `app_user`, each owning
+its own and holding read on the other. You connect as `analytics_user`. That is
+what stops a stray publish from corrupting the application, and stops a backend
+deploy from overwriting your marts.
+
+`scripts/db-setup.py` at the repository root creates all of it, and prints your
+password once. Run it against your local Postgres and you have the same shape
+as the real database before the real one exists.
 
 Anything personal is your problem to handle the moment you read it. Hash it or
 drop it in your staging model, so it never reaches a mart and never leaves the

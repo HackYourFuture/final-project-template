@@ -171,8 +171,15 @@ def final_project_pipeline():
         columns, rows = read_mart(
             Warehouse.from_env(), setting("DBT_SCHEMA"), "fct_postings_enriched"
         )
+        # Both are settings, because the role and the secret holding its
+        # password are named when the database is created. `scripts/db-setup.py`
+        # makes `analytics_user`; the defaults below are what the rehearsal
+        # database uses until the real one exists.
         user = setting("BACKEND_PG_USER", "analytics_writer")
-        password = secret("BACKEND_PG_PASSWORD", f"fp-pg-analytics-writer-{setting('TEAM')}")
+        password = secret(
+            "BACKEND_PG_PASSWORD",
+            setting("BACKEND_PG_SECRET", f"fp-pg-analytics-writer-{setting('TEAM')}"),
+        )
         # sslmode=require in Azure; the local container has no certificate, so
         # `prefer` keeps one DSN working in both places.
         sslmode = setting("BACKEND_PG_SSLMODE", "require")

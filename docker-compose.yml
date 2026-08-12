@@ -9,10 +9,6 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql
-      # Run once, when the database is first created: gives the data pipeline
-      # somewhere to publish locally. On the real database the backend's
-      # migration does this.
-      - ./data/local:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -23,8 +19,8 @@ services:
     build: ./backend
     environment:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_USER: app_user
+      DB_PASSWORD: ${APP_USER_PASSWORD}
     ports:
       - "8080:8080"
     depends_on:
@@ -61,7 +57,6 @@ services:
       # Reach the database by its service name on the compose network.
       BACKEND_PG_HOST: db
       BACKEND_PG_PORT: "5432"
-      BACKEND_PG_DB: ${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy

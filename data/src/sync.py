@@ -47,11 +47,11 @@ def read_mart(
     return columns, rows
 
 
-def read_backend_table(dsn: str, table: str, schema: str = "public") -> list[dict]:
+def read_backend_table(dsn: str, table: str, schema: str = "app") -> list[dict]:
     """Read one of the backend's own tables.
 
-    Your credential has read and nothing else on their schema, so the worst a
-    mistake here can do is return the wrong rows.
+    `analytics_user` has read and nothing else on the `app` schema, so the
+    worst a mistake here can do is return the wrong rows.
     """
     statement = SQL("select * from {}").format(Identifier(schema, table))
     with psycopg.connect(dsn) as connection, connection.cursor() as cursor:
