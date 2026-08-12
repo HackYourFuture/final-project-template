@@ -35,8 +35,14 @@ def load_freshness() -> pd.DataFrame:
             count(distinct posted_date) as days_covered
         from {SCHEMA}.fct_postings
     """
-    with psycopg.connect(DSN) as conn:
-        return pd.read_sql(query, conn)
+    # Read with a cursor rather than pd.read_sql. pandas only recognises
+    # SQLAlchemy and sqlite connections, so handing it a psycopg one works but
+    # prints a warning telling you to install SQLAlchemy, which you do not need
+    # for three numbers.
+    with psycopg.connect(DSN) as conn, conn.cursor() as cursor:
+        cursor.execute(query)
+        columns = [column.name for column in cursor.description]
+        return pd.DataFrame(cursor.fetchall(), columns=columns)
 
 
 stats = load_freshness()
