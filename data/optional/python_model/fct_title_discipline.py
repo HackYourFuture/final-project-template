@@ -24,6 +24,7 @@ tested in `test_fct_title_discipline.py` without a key or a network.
 """
 
 import json
+import urllib.error
 import urllib.request
 
 # Keep this list short and closed. An open-ended prompt ("what discipline is
@@ -34,7 +35,13 @@ DISCIPLINES = ("backend", "frontend", "data", "devops", "other")
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 # Pin the model. "latest" means your classification changes under you, and the
 # first you hear of it is a dbt test failing on data that did not change.
-MODEL = "openai/gpt-4o-mini"
+#
+# The `:free` suffix costs nothing and is capped at 50 requests a day across
+# the whole OpenRouter account, which at BATCH_SIZE titles per request is far
+# more than this pipeline needs. That cap is shared, not per team, so read
+# optional/README.md before the first backfill. Override it per model with
+# `+llm_model:` rather than editing this line.
+MODEL = "openai/gpt-oss-20b:free"
 # Titles per request. Large enough that one call does real work, small enough
 # that one bad response costs little to redo.
 BATCH_SIZE = 40
@@ -118,8 +125,21 @@ def openrouter(api_key: str, model: str = MODEL, timeout: int = 120):
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                body = json.load(response)
+        except urllib.error.HTTPError as error:
+            # 429 is the one you will actually meet, and the default message
+            # ("HTTP Error 429") tells you nothing about why. On the free tier
+            # the daily allowance belongs to the whole OpenRouter account, so
+            # this usually means another team spent it, not that you looped.
+            if error.code == 429:
+                raise ClassificationError(
+                    "OpenRouter refused the request: rate limited (429). The free "
+                    "tier allows 50 requests a day for the whole account, shared "
+                    "between teams. Wait, or switch to a paid model."
+                ) from error
+            raise ClassificationError(f"OpenRouter returned {error.code}") from error
         return body["choices"][0]["message"]["content"]
 
     return call
@@ -162,5 +182,7 @@ def model(dbt, session):
     # tests only cover the functions above.
     api_key = dbutils.secrets.get(scope=scope, key="openrouter-api-key")  # noqa: F821
 
-    classified = classify(titles, openrouter(api_key))
+    # A config rather than a constant: free model IDs get retired, and changing
+    # one should not mean editing a file you copied.
+    classified = classify(titles, openrouter(api_key, dbt.config.get("llm_model") or MODEL))
     return session.createDataFrame(list(classified.items()), "title string, discipline string")

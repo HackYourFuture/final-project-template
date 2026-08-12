@@ -8,6 +8,7 @@ Copy this next to the model file and run `uv run pytest optional/python_model`.
 """
 
 import json
+import urllib.error
 
 import pytest
 from fct_title_discipline import (
@@ -15,6 +16,7 @@ from fct_title_discipline import (
     ClassificationError,
     build_prompt,
     classify,
+    openrouter,
     parse_response,
 )
 
@@ -80,6 +82,21 @@ def test_an_answer_with_no_json_raises():
     """Better a failed run than a table of silent `other`."""
     with pytest.raises(ClassificationError, match="no JSON"):
         parse_response("I cannot help with that.", ["Backend Engineer"])
+
+
+def test_being_rate_limited_says_so_in_words(monkeypatch):
+    """429 is the failure teams will actually meet, on a shared daily quota.
+
+    `HTTP Error 429: Too Many Requests` in an Airflow log sends someone
+    looking for a bug in their own code, so the message names the real cause.
+    """
+
+    def refuse(*_args, **_kwargs):
+        raise urllib.error.HTTPError(url="", code=429, msg="", hdrs=None, fp=None)
+
+    monkeypatch.setattr("urllib.request.urlopen", refuse)
+    with pytest.raises(ClassificationError, match="50 requests a day"):
+        openrouter("not-a-real-key")("classify these")
 
 
 def test_the_prompt_names_the_allowed_disciplines_and_the_titles():

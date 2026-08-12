@@ -67,6 +67,9 @@ scope, and nobody outside it can read it.
 databricks secrets put-secret team_<x> openrouter-api-key
 ```
 
+Ask your teacher for the key. The model it points at, `openai/gpt-oss-20b:free`,
+costs nothing to call, and the section below explains what you give up for that.
+
 **2. Copy the model into the project** and tell it which scope to read:
 
 ```bash
@@ -80,6 +83,8 @@ models:
     marts:
       fct_title_discipline:
         +secret_scope: team_<x>
+        # Optional. Leave it out and the model uses the free one it ships with.
+        +llm_model: openai/gpt-oss-20b:free
 ```
 
 **3. Join it in a SQL model,** the same way `src/enrich.py`'s output is joined
@@ -111,6 +116,26 @@ Drop any of the three and you are calling a paid API once per posting per day.
 On the sample source that is cents; on a real one it is the difference between
 a rounding error and a bill worth explaining.
 
+### The daily allowance is shared, and that shapes your first run
+
+The model ships pointing at a free one, and free on OpenRouter means **50
+requests a day for the whole account**, not per team and not per key. All three
+teams draw on the same allowance. At forty titles per request that is up to
+2,000 titles a day, far more than this pipeline needs, but only if nobody
+wastes it.
+
+Two habits keep you out of trouble:
+
+**Run the first backfill by hand, once.** The scheduled task retries twice, and
+because the model is incremental a failed run writes nothing, so every batch
+gets paid for again on the retry. Run `dbt build --select fct_title_discipline`
+yourself, watch it finish, and let the schedule pick up from there, when there
+are only a few new titles a day.
+
+**Read the error before you change anything.** A rate limit comes back as a
+message naming the daily allowance, not as a mystery. If it says that, the
+answer is to wait or to ask your teacher, not to edit the code.
+
 ### Where it gets awkward, honestly
 
 An LLM is not deterministic, so `accepted_values` on the output can fail on a
@@ -118,6 +143,13 @@ day when your data did not change. Two things keep that in check, and both are
 in the code: `temperature: 0`, and a fixed list of disciplines, with anything
 outside it forced to `other`. The model does not get to extend your taxonomy.
 
-Pin the model name too. `MODEL = "openai/gpt-4o-mini"` rather than a moving
-alias, or your classification changes under you and the first you hear of it
-is a failing test.
+Pin the model name too. `openai/gpt-oss-20b:free` rather than a moving alias,
+or your classification changes under you and the first you hear of it is a
+failing test. Free model IDs do get retired, so if a run suddenly reports an
+unknown model, set `+llm_model` to the current one rather than editing the
+file you copied.
+
+One more, said plainly: this classifier has been tested for its batching and
+its parsing, not for the quality of its answers. Nobody has checked how well
+this particular model labels your titles. Read a sample of the output before
+you build anything on top of it.
