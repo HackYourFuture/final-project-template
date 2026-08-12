@@ -22,7 +22,7 @@ public class OpenApiConfig {
                         .description("REST API for the HackYourFuture final project.")
                         .version("1.0.0"))
                 .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Local development")
+                        new Server().url("/").description("This server")
                 ));
     }
 
