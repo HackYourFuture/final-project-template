@@ -1,3 +1,5 @@
+# OPTIONAL. Tests for an optional module. No API key and no network needed,
+# so they run as they are. See data/optional/README.md.
 """The parts of the LLM model worth testing: batching, parsing, and refusal.
 
 No key and no network. `classify` takes the function that talks to the model,

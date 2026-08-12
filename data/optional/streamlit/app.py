@@ -1,3 +1,5 @@
+# OPTIONAL. A health page for your team, not part of the required pipeline
+# and not the product UI. See data/optional/README.md.
 """Operations dashboard for the pipeline.
 
 This is for your team, not for end users. The product UI is the frontend

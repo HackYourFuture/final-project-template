@@ -1,3 +1,5 @@
+# OPTIONAL. Tests for an optional module. They only run once you have copied
+# dbt_results.py into src/. See data/optional/README.md.
 """Recording what dbt did.
 
 Run from the data folder once you have copied dbt_results.py into src/:

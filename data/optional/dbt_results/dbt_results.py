@@ -1,3 +1,5 @@
+# OPTIONAL. Not part of the required pipeline, and nothing imports it where
+# it sits. Copy it into src/ to use it. See data/optional/README.md.
 """Turn dbt's own record of a run into a table anyone can query.
 
 dbt writes a full account of every model and test it ran to

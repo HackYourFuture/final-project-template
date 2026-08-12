@@ -1,3 +1,6 @@
+# OPTIONAL. Not part of the required pipeline. It does the same job as
+# src/enrich.py with an LLM, and needs an API key before it runs at all.
+# Copy it into dbt/models/marts/ to use it. See data/optional/README.md.
 """Classify job titles with an LLM, as a dbt model rather than a container.
 
 Copy this file into `dbt/models/marts/` and it becomes a normal node in the

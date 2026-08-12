@@ -1,3 +1,8 @@
+# OPTIONAL to configure, not optional to keep. pipeline_dag.py imports this
+# file, so deleting it stops the DAG from loading. Leave it alone and nothing
+# breaks: without a Slack webhook it writes the alert to the task log instead
+# of posting it. To make it post, put a webhook in Key Vault. See the README,
+# "Alerting".
 """Tell a human when a task fails, by posting to Slack.
 
 The webhook is a credential, so it lives in Key Vault and is read inside the
