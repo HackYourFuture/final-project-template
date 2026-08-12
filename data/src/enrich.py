@@ -38,11 +38,9 @@ import logging
 import os
 import sys
 
-from .warehouse import Warehouse, WarehouseError
+from .warehouse import Queryable, Warehouse, WarehouseError
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("enrich")
 
 # The vocabulary. Keep it small and mutually exclusive: a posting gets the
@@ -87,7 +85,7 @@ def sql_literal(value: str) -> str:
     return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'"
 
 
-def enrich(warehouse: Warehouse, schema: str, batch_size: int = 500) -> int:
+def enrich(warehouse: Queryable, schema: str, batch_size: int = 500) -> int:
     """Classify every posting in the mart and rebuild the enriched table.
 
     Returns the number of postings classified. Rebuilding from scratch each
@@ -110,14 +108,9 @@ def enrich(warehouse: Warehouse, schema: str, batch_size: int = 500) -> int:
     counts: dict[str, int] = {}
     for _, discipline in classified:
         counts[discipline] = counts.get(discipline, 0) + 1
-    logger.info(
-        "classified: %s", ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
-    )
+    logger.info("classified: %s", ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
 
-    warehouse.run(
-        f"create or replace table {mapping} "
-        "(posting_id string, discipline string)"
-    )
+    warehouse.run(f"create or replace table {mapping} " "(posting_id string, discipline string)")
     # In batches, because one statement holding every row eventually exceeds
     # what the API accepts, and it does so on the day your source gets popular
     # rather than today.
@@ -143,16 +136,16 @@ def enrich(warehouse: Warehouse, schema: str, batch_size: int = 500) -> int:
     landed = int(warehouse.run(f"select count(*) from {target}")[0][0])
     logger.info("wrote %d rows to %s", landed, target)
     if landed != len(rows):
-        raise WarehouseError(
-            f"read {len(rows)} postings but {target} has {landed} rows"
-        )
+        raise WarehouseError(f"read {len(rows)} postings but {target} has {landed} rows")
     return landed
 
 
 def main() -> int:
-    schema = os.getenv("DBT_SCHEMA", "main")
     try:
-        enrich(Warehouse.from_env(), schema)
+        # Built first: it is what loads .env, so DBT_SCHEMA below is read from
+        # the same place as everything else.
+        warehouse = Warehouse.from_env()
+        enrich(warehouse, os.getenv("DBT_SCHEMA", "main"))
     except Exception:
         logger.exception("Enrichment failed")
         return 1

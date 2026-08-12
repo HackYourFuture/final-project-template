@@ -33,6 +33,9 @@ import os
 import time
 import urllib.parse
 import urllib.request
+from typing import Protocol
+
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,22 @@ WAIT_TIMEOUT = "50s"
 
 class WarehouseError(RuntimeError):
     """A statement did not succeed."""
+
+
+class Queryable(Protocol):
+    """What the steps downstream actually need from a warehouse.
+
+    Two methods and a catalog name. Depending on this rather than on the class
+    below is what lets the tests hand `enrich` and `publish_results` a fake
+    that records statements instead of sending them, with no mocking library
+    and no network. Anything with these three members fits.
+    """
+
+    catalog: str
+
+    def run(self, statement: str) -> list[list]: ...
+
+    def query(self, statement: str) -> tuple[list[tuple[str, str]], list[list]]: ...
 
 
 def warehouse_id(http_path: str) -> str:
@@ -106,7 +125,14 @@ class Warehouse:
 
     @classmethod
     def from_env(cls, opener=urllib.request.urlopen) -> "Warehouse":
-        """Build from the same variables dbt reads, so there is one set."""
+        """Build from the same variables dbt reads, so there is one set.
+
+        `.env` is loaded here rather than being assumed. Running this from a
+        laptop is the normal case while you are developing, and a job that
+        cannot see the file you just filled in is a confusing first failure.
+        In Azure there is no `.env` and this does nothing.
+        """
+        load_dotenv()
         missing = [
             name
             for name in (
@@ -183,17 +209,12 @@ class Warehouse:
         )
         while body.get("status", {}).get("state") in ("PENDING", "RUNNING"):
             time.sleep(self._poll_seconds)
-            body = self._call(
-                "GET", f"/api/2.0/sql/statements/{body['statement_id']}"
-            )
+            body = self._call("GET", f"/api/2.0/sql/statements/{body['statement_id']}")
 
         state = body.get("status", {}).get("state")
         if state != "SUCCEEDED":
             raise WarehouseError(f"statement {state}: {body.get('status')}")
 
         schema = body.get("manifest", {}).get("schema", {}).get("columns", [])
-        columns = [
-            (column.get("name", ""), column.get("type_text", "STRING"))
-            for column in schema
-        ]
+        columns = [(column.get("name", ""), column.get("type_text", "STRING")) for column in schema]
         return columns, body.get("result", {}).get("data_array") or []

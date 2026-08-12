@@ -216,8 +216,7 @@ def final_project_pipeline():
             f"({', '.join(f'{name} string' for name in columns)})"
         )
         values = ", ".join(
-            "(" + ", ".join(sql_literal(str(row[name])) for name in columns) + ")"
-            for row in rows
+            "(" + ", ".join(sql_literal(str(row[name])) for name in columns) + ")" for row in rows
         )
         warehouse.run(f"insert into {target} values {values}")
         logger.info("landed %d rows in %s", len(rows), target)
@@ -290,9 +289,7 @@ def final_project_pipeline():
         from src.sync import publish, read_mart
 
         warehouse = warehouse_client()
-        columns, rows = read_mart(
-            warehouse, setting("DBT_SCHEMA"), "fct_postings_enriched"
-        )
+        columns, rows = read_mart(warehouse, setting("DBT_SCHEMA"), "fct_postings_enriched")
         password = keyvault("fp-pg-analytics-writer-" + setting("TEAM"))
         dsn = backend_dsn("analytics_writer", password)
         return publish(dsn, "analytics", "fct_postings", columns, rows)

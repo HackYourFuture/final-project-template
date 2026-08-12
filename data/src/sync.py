@@ -44,17 +44,19 @@ They never see an empty or partial table.
 """
 
 import logging
+from typing import LiteralString
 
 import psycopg
+from psycopg.sql import SQL, Identifier, Placeholder
 
-from .warehouse import Warehouse
+from .warehouse import Queryable
 
 logger = logging.getLogger(__name__)
 
 # What a Databricks column becomes in Postgres. Anything not listed here is
 # stored as text, which is the honest default: it keeps the value rather than
 # guessing at it, and a column you did not think about does not fail the run.
-TYPE_MAP = {
+TYPE_MAP: dict[str, LiteralString] = {
     "BIGINT": "bigint",
     "INT": "integer",
     "SMALLINT": "smallint",
@@ -68,13 +70,18 @@ TYPE_MAP = {
 }
 
 
-def postgres_type(databricks_type: str) -> str:
-    """Translate one column type. Unknown types become text on purpose."""
+def postgres_type(databricks_type: str) -> LiteralString:
+    """Translate one column type. Unknown types become text on purpose.
+
+    The return type is LiteralString because psycopg only accepts SQL it can
+    see was written here rather than assembled from input. Every value in the
+    table below is written here, which is the point.
+    """
     return TYPE_MAP.get(databricks_type.upper().split("(")[0], "text")
 
 
 def read_mart(
-    warehouse: Warehouse, schema: str, table: str
+    warehouse: Queryable, schema: str, table: str
 ) -> tuple[list[tuple[str, str]], list[list]]:
     """Read a whole published table out of the warehouse.
 
@@ -99,9 +106,13 @@ def read_app_table(dsn: str, table: str) -> list[dict]:
     schema this credential can see. That is deliberate: a typo reaches nothing
     rather than reaching something private.
     """
+    statement = SQL("select * from app.{}").format(Identifier(table))
     with psycopg.connect(dsn) as connection, connection.cursor() as cursor:
-        cursor.execute(f'select * from app."{table}"')
-        names = [column.name for column in cursor.description]
+        cursor.execute(statement)
+        # description is None for a statement that returns nothing. It cannot
+        # be here, but saying so beats an AttributeError three weeks from now
+        # when somebody points this at a stored procedure.
+        names = [column.name for column in cursor.description or []]
         rows = [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
     logger.info("read %d rows from app.%s", len(rows), table)
     return rows
@@ -118,12 +129,16 @@ def publish(
     if not rows:
         raise ValueError("refusing to publish zero rows over an existing table")
 
-    staging = f"{table}__staging"
-    definition = ", ".join(
-        f'"{name}" {postgres_type(type_text)}' for name, type_text in columns
+    # Names are composed with psycopg's own SQL objects rather than pasted into
+    # an f-string. Table and column names cannot be parameters, so this is what
+    # keeps a name arriving from the warehouse from becoming a statement of its
+    # own, and it is what the library's types insist on.
+    staging = Identifier(schema, f"{table}__staging")
+    published = Identifier(schema, table)
+    definition = SQL(", ").join(
+        SQL("{} {}").format(Identifier(name), SQL(postgres_type(type_text)))
+        for name, type_text in columns
     )
-    placeholders = ", ".join(["%s"] * len(columns))
-    column_list = ", ".join(f'"{name}"' for name, _ in columns)
 
     connection = psycopg.connect(dsn, autocommit=False)
     try:
@@ -131,18 +146,20 @@ def publish(
             # Rebuilt every run rather than reused, so a column added to the
             # mart does not need anyone to remember to drop the old staging
             # table by hand.
-            cursor.execute(f'drop table if exists "{schema}"."{staging}"')
-            cursor.execute(f'create table "{schema}"."{staging}" ({definition})')
+            cursor.execute(SQL("drop table if exists {}").format(staging))
+            cursor.execute(SQL("create table {} ({})").format(staging, definition))
             cursor.executemany(
-                f'insert into "{schema}"."{staging}" ({column_list}) values ({placeholders})',
+                SQL("insert into {} ({}) values ({})").format(
+                    staging,
+                    SQL(", ").join(Identifier(name) for name, _ in columns),
+                    SQL(", ").join([Placeholder()] * len(columns)),
+                ),
                 rows,
             )
             # The swap. Both statements land together or neither does, so a
             # reader is never looking at a table that does not exist.
-            cursor.execute(f'drop table if exists "{schema}"."{table}"')
-            cursor.execute(
-                f'alter table "{schema}"."{staging}" rename to "{table}"'
-            )
+            cursor.execute(SQL("drop table if exists {}").format(published))
+            cursor.execute(SQL("alter table {} rename to {}").format(staging, Identifier(table)))
         connection.commit()
     finally:
         connection.close()

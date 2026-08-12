@@ -12,19 +12,16 @@ one. Tests pass a fake instead. That is the whole trick, and it is why those
 
 import io
 import json
-from typing import Self
 
 import pytest
 
 
 class FakeResponse(io.BytesIO):
-    """What urlopen returns: readable, and usable as a context manager."""
+    """What urlopen returns: readable, and usable as a context manager.
 
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, *_exc) -> None:
-        self.close()
+    BytesIO is already both, so there is nothing to add. It is named rather
+    than used directly so the tests read as what they mean.
+    """
 
 
 def response(payload: dict) -> FakeResponse:
@@ -45,9 +42,7 @@ class RecordingOpener:
     def __call__(self, request, timeout=None):
         self.requests.append(request)
         if not self.answers:
-            raise AssertionError(
-                f"no answer left for {getattr(request, 'full_url', request)}"
-            )
+            raise AssertionError(f"no answer left for {getattr(request, 'full_url', request)}")
         return response(self.answers.pop(0))
 
     @property
@@ -62,7 +57,9 @@ class FakeWarehouse:
     about which statement ran and in what order, not about whitespace.
     """
 
-    def __init__(self, answers: dict[str, list[list]] | None = None, catalog: str = "team_x") -> None:
+    def __init__(
+        self, answers: dict[str, list[list]] | None = None, catalog: str = "team_x"
+    ) -> None:
         self.catalog = catalog
         self.answers = answers or {}
         self.statements: list[str] = []

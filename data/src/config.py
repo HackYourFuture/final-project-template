@@ -24,9 +24,7 @@ class MissingSetting(RuntimeError):
 def _required(name: str) -> str:
     value = os.getenv(name)
     if not value:
-        raise MissingSetting(
-            f"{name} is not set. Copy .env.example to .env and fill it in."
-        )
+        raise MissingSetting(f"{name} is not set. Copy .env.example to .env and fill it in.")
     return value
 
 

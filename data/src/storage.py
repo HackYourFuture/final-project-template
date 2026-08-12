@@ -101,6 +101,10 @@ def land_raw_json(account: str, path: str, records: list[dict]) -> int:
 
     logger.info(
         "landed %d records, %d bytes, to %s/%s on %s",
-        len(records), len(payload), CONTAINER, path, account,
+        len(records),
+        len(payload),
+        CONTAINER,
+        path,
+        account,
     )
     return len(records)

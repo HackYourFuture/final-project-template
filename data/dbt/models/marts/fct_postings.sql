@@ -10,11 +10,7 @@
 -- Change: rename to your domain and decide the grain. Write one sentence in
 -- _fct_postings.yml saying what one row means. If you cannot write that
 -- sentence, the mart is not ready.
-with postings as (
-
-    select * from {{ ref('stg_postings') }}
-
-)
+with postings as (select * from {{ ref("stg_postings") }})
 
 select
     posting_id,

@@ -52,9 +52,27 @@ jobs:
         working-directory: ./data
         run: uv sync --extra dev --extra sync
 
+      # Four tools, four jobs. ruff finds mistakes, black settles Python
+      # layout, sqlfmt settles SQL layout, and ty checks the types. Each runs
+      # as its own step so a failure names itself instead of hiding in a wall
+      # of output.
       - name: Lint
         working-directory: ./data
         run: uv run ruff check .
+
+      - name: Format (Python)
+        working-directory: ./data
+        # Fix locally with `uv run black .`
+        run: uv run black --check .
+
+      - name: Format (SQL)
+        working-directory: ./data
+        # Fix locally with `uv run sqlfmt dbt/models dbt/tests`
+        run: uv run sqlfmt --check dbt/models dbt/tests
+
+      - name: Types
+        working-directory: ./data
+        run: uv run ty check src tests
 
       - name: Test
         working-directory: ./data

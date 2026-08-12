@@ -55,9 +55,11 @@ def test_enrich_rebuilds_the_table_and_checks_the_count():
 
     # Mapping table first, then the join back. The other order would join
     # against last run's classifications.
-    assert warehouse.index_of("create or replace table team_x.main.postings_discipline") < warehouse.index_of(
-        "insert into team_x.main.postings_discipline"
-    ) < warehouse.index_of("create or replace table team_x.main.fct_postings_enriched")
+    assert (
+        warehouse.index_of("create or replace table team_x.main.postings_discipline")
+        < warehouse.index_of("insert into team_x.main.postings_discipline")
+        < warehouse.index_of("create or replace table team_x.main.fct_postings_enriched")
+    )
 
 
 def test_enrich_batches_large_inputs():

@@ -24,7 +24,15 @@ sync = ["databricks-sql-connector>=3.4.0", "psycopg[binary]>=3.2.0"]
 # range resolves to a pair that pip and uv both reject. Bump the two together.
 dbt = ["dbt-core==1.10.9", "dbt-databricks==1.10.11"]
 dashboard = ["streamlit>=1.39.0", "pandas>=2.2.0", "psycopg[binary]>=3.2.0"]
-dev = ["pytest>=8.3.0", "ruff>=0.6.0"]
+# ruff lints, black formats the Python, sqlfmt formats the SQL, and ty checks
+# the types. Four tools rather than argument threads about layout.
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.6.0",
+    "black>=24.8.0",
+    "ty>=0.0.1a1",
+    "shandy-sqlfmt>=0.23.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -32,6 +40,15 @@ testpaths = ["tests"]
 # container does. Without it `from src.ingest import ...` only works when you
 # happen to run pytest from exactly the right directory.
 pythonpath = ["."]
+
+[tool.black]
+# Matches the ruff line length below. Black owns layout, ruff owns everything
+# else, and neither is allowed an opinion about the other's job.
+line-length = 100
+
+[tool.sqlfmt]
+# dbt models only. The compiled output under target/ is not ours to format.
+exclude = ["dbt/target/**", "dbt/dbt_packages/**"]
 
 [tool.ruff]
 line-length = 100

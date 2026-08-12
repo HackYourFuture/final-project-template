@@ -38,8 +38,10 @@ WEBHOOK_SECRET = os.environ.get("SLACK_WEBHOOK_SECRET", "fp-slack-webhook")
 
 def _imds_token(resource: str) -> str:
     """A token for the VM's own identity. No secret involved."""
-    url = ("http://169.254.169.254/metadata/identity/oauth2/token"
-           f"?api-version=2018-02-01&resource={resource}")
+    url = (
+        "http://169.254.169.254/metadata/identity/oauth2/token"
+        f"?api-version=2018-02-01&resource={resource}"
+    )
     request = urllib.request.Request(url, headers={"Metadata": "true"})
     return json.load(urllib.request.urlopen(request, timeout=15))["access_token"]
 
@@ -62,8 +64,11 @@ def post(text: str) -> None:
         print(f"alerts: would have posted:\n{text}")
         return
     request = urllib.request.Request(
-        url, data=json.dumps({"text": text}).encode(), method="POST",
-        headers={"Content-Type": "application/json"})
+        url,
+        data=json.dumps({"text": text}).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
     with urllib.request.urlopen(request, timeout=20) as response:
         print(f"alerts: posted to Slack ({response.status})")
 
@@ -91,13 +96,16 @@ def slack_alert(context) -> None:
         reason = reason.splitlines()[-1][:300] if reason else "no exception recorded"
 
         base = os.environ.get("AIRFLOW_BASE_URL", "").rstrip("/")
-        link = (f"\n<{base}/dags/{dag_id}/runs/{run_id}/tasks/{task_id}|Open the task log>"
-                if base else "")
+        link = (
+            f"\n<{base}/dags/{dag_id}/runs/{run_id}/tasks/{task_id}|Open the task log>"
+            if base
+            else ""
+        )
 
         post(
             f":rotating_light: *{dag_id}* failed\n"
             f"*task* `{task_id}`  *attempt* {attempt}\n"
             f"*why* `{reason}`{link}"
         )
-    except Exception as exc:                      # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         print(f"alerts: could not post the failure alert: {type(exc).__name__} {exc}")

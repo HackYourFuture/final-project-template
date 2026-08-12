@@ -31,12 +31,14 @@ def run(answers: list[dict], **kwargs) -> str:
 
 def test_waits_through_pending_and_running():
     """The job is not finished when it starts, and the task must not be either."""
-    name = run([
-        STARTED,
-        execution("Pending"),
-        execution("Running"),
-        execution("Succeeded"),
-    ])
+    name = run(
+        [
+            STARTED,
+            execution("Pending"),
+            execution("Running"),
+            execution("Succeeded"),
+        ]
+    )
     assert name == "job-ingest-abc123"
 
 

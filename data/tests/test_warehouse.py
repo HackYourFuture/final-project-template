@@ -40,11 +40,13 @@ def test_a_path_with_no_id_is_rejected():
 def test_run_waits_for_a_pending_statement():
     """Returning while it is still RUNNING means the next step builds on a
     table that is half written."""
-    warehouse, _ = build([
-        {"statement_id": "s1", "status": {"state": "PENDING"}},
-        {"statement_id": "s1", "status": {"state": "RUNNING"}},
-        succeeded([["7"]]),
-    ])
+    warehouse, _ = build(
+        [
+            {"statement_id": "s1", "status": {"state": "PENDING"}},
+            {"statement_id": "s1", "status": {"state": "RUNNING"}},
+            succeeded([["7"]]),
+        ]
+    )
     assert warehouse.run("select count(*) from t") == [["7"]]
 
 

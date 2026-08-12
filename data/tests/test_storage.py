@@ -15,9 +15,7 @@ def test_explicit_run_date_wins():
 def test_default_run_date_is_todays_utc_date():
     """Not the local date. A run at 01:00 in Amsterdam is still yesterday in UTC,
     and the whole pipeline agrees on UTC or it agrees on nothing."""
-    assert storage.blob_path("postings").endswith(
-        f"{datetime.now(tz=UTC).date().isoformat()}.json"
-    )
+    assert storage.blob_path("postings").endswith(f"{datetime.now(tz=UTC).date().isoformat()}.json")
 
 
 def test_volume_path_matches_the_blob_layout():

@@ -26,7 +26,10 @@ class FakeCursor:
         self.log = log
 
     def execute(self, statement, params=None):
-        self.log.append(" ".join(statement.split()))
+        # Statements are psycopg SQL objects now, not strings. as_string()
+        # renders one the way the server will see it, which is what the
+        # ordering assertions below read.
+        self.log.append(" ".join(statement.as_string().split()))
 
     def executemany(self, statement, rows):
         self.log.append(f"INSERT x{len(list(rows))}")

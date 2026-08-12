@@ -103,6 +103,5 @@ def start_and_wait(
             )
 
     raise TimeoutError(
-        f"{job_name} execution {execution} did not finish within "
-        f"{timeout_seconds}s"
+        f"{job_name} execution {execution} did not finish within " f"{timeout_seconds}s"
     )

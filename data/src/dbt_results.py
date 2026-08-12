@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 
 from .enrich import sql_literal
-from .warehouse import Warehouse
+from .warehouse import Queryable
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def summarise(results: list[dict]) -> dict[str, int]:
     return counts
 
 
-def publish_results(warehouse: Warehouse, results: list[dict]) -> int:
+def publish_results(warehouse: Queryable, results: list[dict]) -> int:
     """Append one row per node to <catalog>.ops.dbt_test_runs."""
     if not results:
         return 0

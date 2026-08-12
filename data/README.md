@@ -188,6 +188,23 @@ loop notices a failed container, and whether the publish swaps its tables in an
 order that never leaves the backend looking at a missing one. Add to them as
 you go, and CI runs them on every pull request.
 
+## Keeping the code tidy
+
+Four tools, each with one job, all installed by `uv sync --extra dev` and all
+run by CI on every pull request:
+
+```bash
+uv run ruff check .                     # mistakes: unused imports, bugs, naive datetimes
+uv run black .                          # Python layout
+uv run sqlfmt dbt/models dbt/tests      # SQL layout
+uv run ty check src tests               # types
+```
+
+Run them before you push and the pull request goes green first time. Two of
+them will teach you something the first week: `ruff` refuses a `datetime` with
+no timezone, and `ty` refuses SQL built by pasting a name into a string, which
+is why `src/sync.py` composes statements with `psycopg.sql` instead.
+
 ### Running the whole stack locally
 
 All three start from the repository root:

@@ -48,13 +48,12 @@ def run(run_date: str | None = None) -> int:
     # rows leaves yesterday's mart in place and every test still passing, so
     # nobody finds out for a week.
     if not parsed:
-        raise RuntimeError(
-            f"No valid records: {len(records)} received, {rejected} rejected"
-        )
+        raise RuntimeError(f"No valid records: {len(records)} received, {rejected} rejected")
     if rejected:
         logger.warning(
             "%d of %d records failed validation and are still being landed",
-            rejected, len(records),
+            rejected,
+            len(records),
         )
 
     # Land what the source sent, not what validation produced. Parsing here is
@@ -70,7 +69,9 @@ def run(run_date: str | None = None) -> int:
 
     logger.info(
         "Pipeline finished: %d landed, %d rejected, readable at %s",
-        landed, rejected, volume_path(config.databricks_catalog, config.source_name),
+        landed,
+        rejected,
+        volume_path(config.databricks_catalog, config.source_name),
     )
     return landed
 

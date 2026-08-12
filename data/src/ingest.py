@@ -6,6 +6,7 @@ source and rewrite `parse_records` to match its shape.
 """
 
 import logging
+from typing import Any
 
 import requests
 from pydantic import ValidationError
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT_SECONDS = 30
 
 
-def fetch_raw(url: str) -> list[dict]:
+def fetch_raw(url: str) -> list[Any]:
     """Call the source API and return its raw records.
 
     Any non-2xx response raises, so a broken source fails the pipeline run
@@ -37,8 +38,13 @@ def fetch_raw(url: str) -> list[dict]:
     return records
 
 
-def parse_records(records: list[dict]) -> tuple[list[Posting], int]:
+def parse_records(records: list[Any]) -> tuple[list[Posting], int]:
     """Validate raw records, returning the good ones and a rejected count.
+
+    `Any` is honest here rather than lazy. This is the boundary: the source
+    sends whatever it likes, including a list with a bare string in it, and
+    surviving that is this function's whole job. Everything downstream of it
+    is typed.
 
     One malformed record should not lose you the whole batch, so invalid rows
     are counted and skipped rather than raised.
@@ -53,7 +59,9 @@ def parse_records(records: list[dict]) -> tuple[list[Posting], int]:
             # A JSON list can hold a scalar, and calling .get on one would
             # raise here and lose the whole batch, which is the opposite of
             # what this loop is for.
-            identifier = record.get("slug", "<no slug>") if isinstance(record, dict) else repr(record)[:40]
+            identifier = (
+                record.get("slug", "<no slug>") if isinstance(record, dict) else repr(record)[:40]
+            )
             logger.warning("Rejected record %s: %s", identifier, exc.error_count())
     logger.info("Parsed %d record(s), rejected %d", len(parsed), rejected)
     return parsed, rejected
