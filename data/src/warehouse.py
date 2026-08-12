@@ -122,14 +122,19 @@ class Warehouse:
         if missing:
             raise WarehouseError(
                 "missing settings: " + ", ".join(missing) + ". "
-                "These are the same values dbt uses, and none of them is a secret."
+                "These are the same values dbt uses, from the same .env."
             )
-        # The team's service principal when it is configured, which is how the
-        # scheduled run authenticates. Otherwise you, which is how your own
-        # runs should: nothing to copy out of Key Vault and onto your laptop.
+        # Your own token first, the same DATABRICKS_TOKEN dbt reads, so one
+        # value covers every local step. Then the team's service principal,
+        # which is how the scheduled run authenticates and how the container
+        # jobs are configured. Then whoever is signed in, which covers a
+        # managed identity with no settings at all.
+        personal_token = os.getenv("DATABRICKS_TOKEN")
         client_id = os.getenv("DATABRICKS_CLIENT_ID")
         client_secret = os.getenv("DATABRICKS_CLIENT_SECRET")
-        if client_id and client_secret:
+        if personal_token:
+            token = personal_token
+        elif client_id and client_secret:
             tenant_id = os.getenv("AZURE_TENANT_ID")
             if not tenant_id:
                 raise WarehouseError(
