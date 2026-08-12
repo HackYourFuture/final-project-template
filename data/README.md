@@ -131,9 +131,13 @@ propagated yet. It can take a few minutes after it is granted.
 **5. Install and run.**
 
 ```bash
-uv sync --extra dbt --extra sync
+uv sync --all-extras
 uv run python -m src.pipeline
 ```
+
+`--all-extras`, not one extra at a time: `uv sync` makes the environment match
+exactly what you asked for, so a later `uv sync --extra dev` would uninstall
+dbt again.
 
 That fetches the default source and lands one file. Check it arrived, from the
 Databricks SQL editor:
@@ -176,7 +180,6 @@ uv run python -m src.enrich
 one thing you can run before anything else works.
 
 ```bash
-uv sync --extra dev
 uv run pytest
 ```
 
@@ -250,7 +253,7 @@ needs the VM's identity, so run those two as the scripts above.
 
 ## Keeping the code tidy
 
-Four tools, each with one job, all installed by `uv sync --extra dev` and all
+Four tools, each with one job, all installed by `uv sync --all-extras` and all
 run by CI on every pull request:
 
 ```bash
