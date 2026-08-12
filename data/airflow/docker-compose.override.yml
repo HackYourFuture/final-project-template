@@ -15,10 +15,12 @@
 # When you deploy, bake these paths into the image with COPY.
 x-local: &local
   volumes:
-    - ../src:/usr/local/airflow/src:ro
+    # Mounted inside dags/ on purpose. Airflow puts the dags folder on the
+    # Python path before it parses anything, so the DAG can `import src` with
+    # no PYTHONPATH to set and nothing to remember when it is deployed.
+    - ../src:/usr/local/airflow/dags/src:ro
     - ../dbt:/usr/local/airflow/include/dbt:rw
   environment:
-    PYTHONPATH: /usr/local/airflow
     # Astro mounts the project here; the team VM uses /opt/airflow. The DAG
     # reads this rather than hardcoding either one.
     DBT_PROJECT_DIR: /usr/local/airflow/include/dbt

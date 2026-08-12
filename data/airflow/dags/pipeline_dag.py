@@ -32,7 +32,7 @@ the same name, read at run time. They are names and hosts, not secrets:
 
     AZURE_SUBSCRIPTION, AZURE_RESOURCE_GROUP, ACA_INGEST_JOB, ACA_ENRICH_JOB,
     DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_CATALOG, DBT_SCHEMA,
-    BACKEND_PG_HOST, BACKEND_PG_DB, KEY_VAULT, TEAM
+    AZURE_TENANT_ID, BACKEND_PG_HOST, BACKEND_PG_DB, KEY_VAULT, TEAM
 
 Every actual secret is fetched from Key Vault inside the task that needs it.
 Your VM has an identity that may read your team's secrets and nobody else's,
@@ -53,8 +53,8 @@ import os
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-from airflow.exceptions import AirflowSkipException
 from airflow.sdk import Variable, dag, task
+from airflow.sdk.exceptions import AirflowSkipException
 from alerts import slack_alert
 
 logger = logging.getLogger(__name__)
@@ -75,22 +75,24 @@ DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/airflow/include/dbt")
 
 
 def setting(name: str, default: str | None = None) -> str:
-    """Read one setting: environment first, then Airflow Variables.
+    """Read one setting from Airflow Variables.
 
-    Two sources because the two are good at different things. Environment
-    variables are set once when the VM is built, which suits values that are
-    the same for every run. Variables can be changed from the UI without a
-    deploy, which suits everything else. Environment wins, so a machine can
-    always override what is in the database.
+    The Airflow UI is where these live, under Admin -> Variables, and you are
+    an admin on your team's instance. That is deliberate: you can change where
+    the pipeline points without a deploy and without anyone with access to the
+    machine, and the change is visible to your whole team rather than sitting
+    in one person's shell.
+
+    The environment is a fallback, for running a task on your own laptop where
+    there is no Airflow database to read.
 
     Called inside tasks, never at module scope: a DAG file is re-parsed every
     few seconds, and a lookup up here would multiply by that.
     """
-    value = os.environ.get(name) or Variable.get(name, default=default)
+    value = Variable.get(name, default=None) or os.environ.get(name) or default
     if value is None:
         raise RuntimeError(
-            f"{name} is not set. Add it as an Airflow Variable (Admin -> "
-            "Variables) or as an environment variable on the machine."
+            f"{name} is not set. Add it in the Airflow UI under " "Admin -> Variables."
         )
     return value
 
@@ -109,7 +111,12 @@ def keyvault(secret_name: str) -> str:
 
 
 def databricks_environment() -> dict[str, str]:
-    """The five values anything talking to the warehouse needs.
+    """Everything that talks to the warehouse, in one dictionary.
+
+    This is exactly the set `dbt/profiles.yml` reads plus the tenant the token
+    is minted at, so dbt and the Python steps cannot end up pointing at
+    different places. Leave one out and dbt exits before it runs, with an
+    error that names the variable and nothing else.
 
     Built inside a task so the two Key Vault reads happen once per run rather
     than once per parse.
@@ -119,6 +126,8 @@ def databricks_environment() -> dict[str, str]:
         "DATABRICKS_HOST": setting("DATABRICKS_HOST"),
         "DATABRICKS_HTTP_PATH": setting("DATABRICKS_HTTP_PATH"),
         "DATABRICKS_CATALOG": setting("DATABRICKS_CATALOG"),
+        "DBT_SCHEMA": setting("DBT_SCHEMA"),
+        "AZURE_TENANT_ID": setting("AZURE_TENANT_ID"),
         "DATABRICKS_CLIENT_ID": keyvault(f"fp-databricks-client-id-{team}"),
         "DATABRICKS_CLIENT_SECRET": keyvault(f"fp-databricks-client-secret-{team}"),
     }
@@ -188,8 +197,8 @@ def final_project_pipeline():
         Skips until such a view exists, because a red DAG on day one teaches
         nothing. Set APP_INBOUND_TABLE when the backend has agreed one.
         """
-        table = os.environ.get("APP_INBOUND_TABLE") or Variable.get(
-            "APP_INBOUND_TABLE", default=None
+        table = Variable.get("APP_INBOUND_TABLE", default=None) or os.environ.get(
+            "APP_INBOUND_TABLE"
         )
         if not table:
             raise AirflowSkipException(
@@ -222,7 +231,11 @@ def final_project_pipeline():
         logger.info("landed %d rows in %s", len(rows), target)
         return len(rows)
 
-    @task
+    # none_failed, not the default all_success. inbound_sync skips by design
+    # until the backend exposes a view, and under all_success a skipped
+    # upstream skips everything after it: the pipeline would quietly do nothing
+    # at all, with every task green-ish and no failure to investigate.
+    @task(trigger_rule="none_failed")
     def dbt_build() -> str:
         """Build the models, run the tests, record the outcome.
 

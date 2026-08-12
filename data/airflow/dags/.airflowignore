@@ -1,0 +1,4 @@
+# The pipeline package, mounted here so the DAG can import it. It holds no
+# DAGs, and the processor would otherwise parse every file in it a few times a
+# minute looking for one.
+src/

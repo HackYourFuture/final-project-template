@@ -139,6 +139,10 @@ class Warehouse:
                 "DATABRICKS_HOST",
                 "DATABRICKS_HTTP_PATH",
                 "DATABRICKS_CATALOG",
+                # Checked here rather than defaulted to "". An empty tenant
+                # builds a token URL with nothing in the middle, and the only
+                # symptom is a 404 that mentions neither tenants nor settings.
+                "AZURE_TENANT_ID",
                 "DATABRICKS_CLIENT_ID",
                 "DATABRICKS_CLIENT_SECRET",
             )
@@ -151,7 +155,7 @@ class Warehouse:
                 "ones from Key Vault."
             )
         token = entra_token(
-            tenant_id=os.getenv("AZURE_TENANT_ID", ""),
+            tenant_id=os.environ["AZURE_TENANT_ID"],
             client_id=os.environ["DATABRICKS_CLIENT_ID"],
             client_secret=os.environ["DATABRICKS_CLIENT_SECRET"],
             opener=opener,
