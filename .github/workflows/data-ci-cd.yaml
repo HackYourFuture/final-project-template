@@ -31,6 +31,9 @@ on:
     paths:
       - "data/**"
       - ".github/workflows/data-ci-cd.yaml"
+  # Rebuild and push without a code change: useful when a base image has a
+  # security update, or to check the whole path still works before a demo.
+  workflow_dispatch:
 
 concurrency:
   group: docker-build-data-${{ github.ref }}
@@ -130,9 +133,10 @@ jobs:
 
   build:
     needs: [lint-and-test, dag-integrity]
-    # Only on main. A pull request, including one from a fork, cannot mint an
-    # Azure token: the trust is pinned to this repository's main branch.
-    if: github.event_name == 'push'
+    # Never on a pull request. A PR, including one from a fork, cannot mint an
+    # Azure token: the trust is pinned to a branch of this repository, so the
+    # exchange fails rather than the push being blocked after the fact.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       # Required for the token exchange. Without it, sign-in fails.
