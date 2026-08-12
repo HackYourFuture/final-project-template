@@ -271,8 +271,11 @@ All three start from the repository root:
 ```bash
 cp .env.example .env && docker compose up -d db       # the backend's database
 docker compose build pipeline                         # the image CI will build
-cd data/airflow && cp .env.example .env && astro dev start
+cd data/airflow && astro dev start
 ```
+
+Astro needs no `.env` of its own. It reads `data/.env`, so the DAG runs
+against the same source, prefix and schema your own commands use.
 
 Build the image locally, but do not expect to run it locally. Inside the
 container there is no `az login` and no Azure metadata service, so
