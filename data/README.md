@@ -224,7 +224,8 @@ cp .env.example .env && docker compose up -d db      # repo root, first
 cd data/airflow && astro dev start
 ```
 
-Astro reads your `data/.env`, so a task running there uses your prefix, your
+`astro dev start` prints the UI address, `http://airflow.localhost:6563` on
+current versions. Astro reads your `data/.env`, so a task running there uses your prefix, your
 schema and your database. It overrides three values, because inside a
 container `localhost` means the container itself: the database is reached as
 `db` on 5432, with `sslmode=prefer` since the local Postgres has no
