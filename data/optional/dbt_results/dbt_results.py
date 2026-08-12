@@ -17,8 +17,8 @@ import json
 import logging
 from pathlib import Path
 
-from .enrich import sql_literal
-from .warehouse import Queryable
+from src.enrich import sql_literal
+from src.warehouse import Queryable
 
 logger = logging.getLogger(__name__)
 

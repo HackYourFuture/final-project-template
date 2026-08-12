@@ -55,23 +55,21 @@ edits, not what is missing.
 
 | Path | What it does | Change this? |
 |---|---|---|
-| `src/config.py` | Reads settings from the environment, fails loudly when one is missing | Only to add a setting |
 | `src/models.py` | A Pydantic model for job postings | Yes: your source's shape |
 | `src/ingest.py` | Calls the API, validates, counts rejects | The parsing, if your source is nested |
 | `src/storage.py` | Lands raw JSON in your team's landing zone | Rarely |
-| `src/pipeline.py` | The ingestion job: fetch, validate, land | Rarely |
+| `src/pipeline.py` | The ingestion job: settings, fetch, validate, land | Rarely |
 | `src/enrich.py` | The enrichment job: classifies each posting in Python | Yes: this is your domain logic |
 | `src/warehouse.py` | Runs SQL against your warehouse over HTTP | No |
 | `src/sync.py` | Publishes the mart into the backend's database, atomically | Rarely |
 | `src/aca.py` | Starts a container job and waits for it | No |
-| `src/dbt_results.py` | Records every dbt run in `ops.dbt_test_runs` | No |
 | `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
 | `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
 | `tests/` | Unit tests, no credentials needed, under a second | Add as you build |
-| `airflow/dags/pipeline_dag.py` | The five tasks, wired in order | Only to add a step |
+| `airflow/dags/pipeline_dag.py` | The four tasks, wired in order | Only to add a step |
 | `airflow/dags/alerts.py` | Posts to Slack when any task fails | No |
 | `Dockerfile` | The one image both container jobs run | Rarely |
-| `optional/` | A Streamlit operations dashboard. Not required | As you like |
+| `optional/` | A health dashboard and a dbt-results recorder. Neither required | As you like |
 
 ## Setup
 
@@ -88,9 +86,9 @@ in place:
 
 What you do once, on your own machine:
 
-**1. Get your team's values.** Your teacher gives you four: your storage
-account name, your catalog, your SQL warehouse path, and your team letter.
-Everything else is the same for all three teams and is already filled in.
+**1. Get your team's values.** Your teacher gives you two: your storage account
+name and your catalog. Everything else is the same for all three teams and is
+filled in already.
 
 You also need your team's Databricks client id and secret, which dbt and the
 publish step use. Do not ask for those: read them yourself, so they are never
@@ -241,6 +239,41 @@ choose here.
 > confirm you can parse it. An idea you love with a source you cannot reach is
 > worth less than a plain idea that works.
 
+## The landing zone
+
+Raw files, not tables. A raw file is exactly what the source sent you, so when
+a column changes shape in three weeks you can re-read it and find out when.
+
+Your team's storage account has a `landing` container, registered in Unity
+Catalog as an external volume. The file the job writes as
+`landing/raw/postings/2026-08-12.json` is the file dbt reads at
+`/Volumes/<catalog>/landing/raw/postings/`. One copy of the bytes, two ways to
+reach it. `volume_path()` returns the second form, which is what goes in
+`dbt_project.yml`.
+
+One file per source per day, so a re-run replaces its own file instead of
+doubling your data. Change the layout if you like, but change `landing_path` in
+`dbt_project.yml` to match.
+
+**Raw means raw.** The job validates before it writes, but it lands what the
+source sent, not what validation produced. Parsing is a gate deciding whether
+the run is worth landing, not a transformation. Write the parsed objects
+instead and the "raw" file quietly carries your own type coercions, so
+re-reading it after a source change tells you about your bug rather than
+theirs. An empty batch raises: landing zero rows leaves yesterday's mart in
+place with every test still passing, and nobody finds out for a week.
+
+## Talking to the warehouse
+
+`src/warehouse.py` sends statements over the Statement Execution API, which is
+plain HTTPS. `databricks-sql-connector` would do the same over Thrift and a
+much larger dependency tree.
+
+The one thing that surprises everybody: your team's service principal
+authenticates at **Microsoft Entra**, not at the Databricks workspace. The
+workspace's own `/oidc/v1/token` endpoint returns 401 for principals created
+this way, and the error does not hint that you are knocking on the wrong door.
+
 ## Why there is a second container
 
 dbt already runs SQL against the warehouse, so anything expressible as SQL
@@ -258,14 +291,10 @@ test with `pytest` rather than with a dbt test.
 
 ## What runs in Airflow
 
-Five tasks: `ingest` and `inbound_sync` in parallel, then `dbt_build`, then
-`enrich`, then `publish_to_backend`. Ordering is the point: publishing a mart
-that failed its own tests is worse than publishing nothing, and the dependency
-is what stops it.
-
-`inbound_sync` skips until the backend has exposed a view in its `app` schema
-and you have set `APP_INBOUND_TABLE`. A skipped task is honest; a red DAG on
-day one teaches nothing.
+Four tasks, in order: `ingest`, `dbt_build`, `enrich`, `publish_to_backend`.
+The order is the point. Publishing a mart that failed its own tests is worse
+than publishing nothing, and the dependency is what stops it. Separate tasks
+also mean that when dbt fails you re-run dbt, not the fetch.
 
 Every setting lives in the Airflow UI, under **Admin -> Variables**, and is
 read when the task runs. You are an admin on your team's instance, so changing
@@ -275,7 +304,7 @@ whole team can see, with no deploy:
 `TEAM`, `AZURE_SUBSCRIPTION`, `AZURE_RESOURCE_GROUP`, `ACA_INGEST_JOB`,
 `ACA_ENRICH_JOB`, `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`,
 `DATABRICKS_CATALOG`, `DBT_SCHEMA`, `AZURE_TENANT_ID`, `BACKEND_PG_HOST`,
-`BACKEND_PG_DB`, and `APP_INBOUND_TABLE` once the backend exposes a view.
+`BACKEND_PG_DB`.
 
 They are set for you when your team is provisioned. Miss one and the task that
 needs it fails saying which one, rather than doing something surprising.
@@ -284,12 +313,46 @@ Secrets are not among them. Each one is fetched from Key Vault inside the task
 that needs it, using the machine's own identity, so nothing is stored on the VM
 and a typo fails with a 403 rather than reaching another team's data.
 
-The DAG imports the same code the containers run, from `src`, so there is one
-copy of the publish logic rather than one per place it is used. Locally the
-Astro override mounts it and puts it on `PYTHONPATH`; on your VM the same is
-done when the machine is built. If a task ever fails with
-`ModuleNotFoundError: src`, that mount is what is missing, and it is a teacher
-question rather than something to work around in the DAG.
+The DAG imports the same `src` package the containers run, so the publish logic
+exists once. It is mounted inside the dags folder, which Airflow puts on the
+Python path, so there is no PYTHONPATH to configure. A task failing with
+`ModuleNotFoundError: src` means that mount is missing: a teacher question,
+not something to work around in the DAG.
+
+### Reading the app's data
+
+The `app` schema is the other direction: views the backend chooses to expose,
+for your models to join against. `src/sync.py` has `read_app_table` ready for
+it. Add a task once the backend has agreed a view with you, and keep it before
+`dbt_build` so the models can use what it lands.
+
+## The two schemas
+
+The two tracks meet through two schemas in the backend's database, and each
+side owns the one it writes:
+
+- **`analytics`** — you write, the backend reads. Your published marts.
+- **`app`** — the backend writes, you read. Views it chooses to expose.
+
+Neither side reads the other's internal tables. That is what stops a backend
+migration from silently breaking your 6am run, and it is why anything personal
+is hashed or dropped in *their* view: the data never leaves their database in
+the first place.
+
+### The write-then-swap
+
+The publish must never leave a half-loaded table where the backend can see it,
+so loading and switching are separated:
+
+1. create `<table>__staging`, empty
+2. insert every row
+3. in one transaction: `drop table if exists <table>`, then rename staging into
+   its place
+
+Note the `if exists`. The obvious version renames the current table out of the
+way first, which cannot work the very first time you publish, because there is
+nothing to rename: the sync then fails exactly once, on the run you most want
+to succeed.
 
 ## The mart is a contract
 
@@ -302,6 +365,16 @@ Every column is documented in `dbt/models/marts/_fct_postings.yml`. Hand that
 file to the backend trainees on day one and they can write endpoints before
 your pipeline is finished. See `docs/mart_contract.md` for how to work on it
 together.
+
+## Alerting
+
+`airflow/dags/alerts.py` posts to your team's Slack channel when any task
+fails. It is attached once in `default_args`, so every task inherits it,
+including tasks you add later: alerting you have to remember is alerting you
+will forget.
+
+Airflow's own behaviour on failure is to colour a square red and wait for
+somebody to look. Nobody looks at 6am, which is when your pipeline runs.
 
 ## Secrets
 

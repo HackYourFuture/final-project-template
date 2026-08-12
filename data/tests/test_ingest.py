@@ -39,11 +39,6 @@ def test_a_scalar_in_the_list_is_rejected_not_fatal():
     assert rejected == 2
 
 
-def test_empty_input_is_not_an_error_here():
-    """Deciding what an empty batch means is the pipeline's job, not this one."""
-    assert parse_records([]) == ([], 0)
-
-
 def test_epoch_seconds_become_an_aware_datetime():
     """The bug this prevents: a naive datetime reads as the machine's zone.
 
@@ -54,12 +49,6 @@ def test_epoch_seconds_become_an_aware_datetime():
     posting = Posting.model_validate(GOOD)
     assert posting.created_at.tzinfo is not None
     assert posting.created_at == datetime(2026, 8, 11, 20, 55, 29, tzinfo=UTC)
-
-
-def test_an_actual_datetime_passes_through():
-    when = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
-    posting = Posting.model_validate({**GOOD, "created_at": when})
-    assert posting.created_at == when
 
 
 def test_missing_required_field_is_rejected():

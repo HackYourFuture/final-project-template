@@ -1,11 +1,4 @@
-"""Validation models for the source data.
-
-Validating at the edge means bad records are caught where they enter the
-pipeline, not three transformations later when the error message no longer
-tells you anything useful.
-
-Replace this model with one that matches your team's data source.
-"""
+"""Validation models for the source data. Replace with your source's shape."""
 
 from datetime import UTC, datetime
 
@@ -26,11 +19,11 @@ class Posting(BaseModel):
     @field_validator("created_at", mode="before")
     @classmethod
     def _epoch_to_datetime(cls, value: object) -> object:
-        """The source sends a Unix timestamp; store a real datetime in UTC.
+        """Unix timestamp to a UTC datetime.
 
-        Without the timezone, Python reads the timestamp in whatever zone the
-        machine happens to be in, so your laptop and the container would
-        disagree about what `posted_at` means.
+        Without the timezone, Python reads the number in whatever zone the
+        machine is in, so your laptop and the container disagree about what
+        `posted_at` means.
         """
         if isinstance(value, int):
             return datetime.fromtimestamp(value, tz=UTC)

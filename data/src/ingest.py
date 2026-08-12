@@ -1,8 +1,7 @@
 """Fetch records from the source API and validate them.
 
-The default source is the Arbeitnow job board, which needs no API key so the
-template runs the moment you clone it. Point SOURCE_API_URL at your team's
-source and rewrite `parse_records` to match its shape.
+The default source is the Arbeitnow job board, which needs no API key. Point
+SOURCE_API_URL at your team's source and rewrite `parse_records` to match it.
 """
 
 import logging
@@ -19,18 +18,12 @@ REQUEST_TIMEOUT_SECONDS = 30
 
 
 def fetch_raw(url: str) -> list[Any]:
-    """Call the source API and return its raw records.
-
-    Any non-2xx response raises, so a broken source fails the pipeline run
-    instead of silently writing zero rows.
-    """
+    """Call the source API and return its raw records. Non-2xx raises."""
     logger.info("Fetching %s", url)
     response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     payload = response.json()
-    # Some sources wrap their rows in {"data": [...]}, others return the list
-    # itself. Anything else is a shape you have not seen before, and guessing
-    # at it here would surface three functions later as a confusing error.
+    # Some sources wrap their rows in {"data": [...]}, others return the list.
     records = payload.get("data", payload) if isinstance(payload, dict) else payload
     if not isinstance(records, list):
         raise TypeError(f"Expected a list of records, got {type(records).__name__}")
@@ -41,13 +34,9 @@ def fetch_raw(url: str) -> list[Any]:
 def parse_records(records: list[Any]) -> tuple[list[Posting], int]:
     """Validate raw records, returning the good ones and a rejected count.
 
-    `Any` is honest here rather than lazy. This is the boundary: the source
-    sends whatever it likes, including a list with a bare string in it, and
-    surviving that is this function's whole job. Everything downstream of it
-    is typed.
-
-    One malformed record should not lose you the whole batch, so invalid rows
-    are counted and skipped rather than raised.
+    One malformed record must not lose the whole batch, so invalid rows are
+    counted and skipped. `Any` is deliberate: this is the boundary, and the
+    source can send anything.
     """
     parsed: list[Posting] = []
     rejected = 0
@@ -56,9 +45,8 @@ def parse_records(records: list[Any]) -> tuple[list[Posting], int]:
             parsed.append(Posting.model_validate(record))
         except ValidationError as exc:
             rejected += 1
-            # A JSON list can hold a scalar, and calling .get on one would
-            # raise here and lose the whole batch, which is the opposite of
-            # what this loop is for.
+            # A JSON list can hold a scalar, and .get on one would raise here
+            # and lose the batch this loop exists to save.
             identifier = (
                 record.get("slug", "<no slug>") if isinstance(record, dict) else repr(record)[:40]
             )

@@ -1,29 +1,8 @@
-"""Tell a human when a task fails.
+"""Tell a human when a task fails, by posting to Slack.
 
-Airflow's behaviour on failure is to colour a square red and wait for somebody
-to look. Nobody looks at 6am, which is exactly when your pipeline runs. This
-posts to your team's Slack channel instead.
-
-This is not optional polish. "When the pipeline fails, somebody has to find out
-without opening Airflow" is one of the things your project is assessed on, and
-a failure you were told about is the difference between fixing yesterday's run
-this morning and discovering on demo day that the numbers stopped updating a
-week ago.
-
-Why this file sits in the dags folder
--------------------------------------
-Airflow puts the dags folder on sys.path, so `from alerts import slack_alert`
-works with no PYTHONPATH configuration. Airflow will parse this file looking
-for DAGs, find none, and move on. No DAGs are defined here.
-
-Why the webhook is not in this file
------------------------------------
-A Slack webhook URL is a credential: anyone holding it can post to your
-channel. So it lives in Key Vault, and your Airflow VM's managed identity is
-allowed to read that one secret. The lookup happens inside the callback, which
-means it costs nothing until something has already gone wrong. Putting it in
-module scope would fetch it every few seconds, because Airflow re-parses every
-DAG file continuously.
+The webhook is a credential, so it lives in Key Vault and is read inside the
+callback: nothing is fetched until something has already gone wrong. See the
+README, "Alerting".
 """
 
 from __future__ import annotations
@@ -54,7 +33,7 @@ def _webhook_url() -> str:
 
 
 def post(text: str) -> None:
-    """Post one message. Use it for your own notifications too, not just failures."""
+    """Post one message. Useful for your own notifications too."""
     url = _webhook_url()
     if not url.startswith("https://hooks.slack.com/"):
         # The secret exists but has not been filled in. Say so in the task log
@@ -76,13 +55,8 @@ def post(text: str) -> None:
 def slack_alert(context) -> None:
     """Airflow calls this with the failed task's context.
 
-    Attach it once in `default_args` and every task in the DAG inherits it,
-    including tasks you add later. That is the point of putting it there rather
-    than on each operator: alerting you have to remember is alerting you will
-    forget.
-
-    It deliberately swallows its own errors. A bug in the alerting must never
-    turn one failed task into two, and the traceback still reaches the task log.
+    Swallows its own errors on purpose: a bug in the alerting must never turn
+    one failed task into two.
     """
     try:
         instance = context.get("task_instance")

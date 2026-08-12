@@ -1,14 +1,17 @@
 """Recording what dbt did.
 
+Run from the data folder once you have copied dbt_results.py into src/:
+    uv run pytest optional/dbt_results
+
 None of this may ever raise. dbt's exit code already decides whether the run
 failed; losing the bookkeeping must not turn a green run red.
 """
 
 import json
 
-from conftest import FakeWarehouse
+from dbt_results import parse_run_results, publish_results, summarise
 
-from src.dbt_results import parse_run_results, publish_results, summarise
+from tests.conftest import FakeWarehouse
 
 PAYLOAD = {
     "metadata": {"invocation_id": "abc-123", "generated_at": "2026-08-12T06:00:00.123Z"},

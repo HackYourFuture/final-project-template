@@ -1,46 +1,7 @@
 """Publish a mart from Databricks into the backend's Postgres database.
 
-This is the outbound sync, and it is the step that turns your pipeline into a
-data product. The backend trainees do not query Databricks: they query their
-own database, the way they always have. Your job is to put a fresh copy of the
-mart there, on a schedule, without ever leaving them a half-written table.
-
-Airflow runs this after dbt and the enrichment succeed. Never before:
-publishing a mart that failed its tests is worse than publishing nothing.
-
-Which schema, and why there are two
------------------------------------
-The two tracks meet through two schemas, and each side owns the one it writes:
-
-    analytics   you write, the backend reads. Your published marts.
-    app         the backend writes, you read. Views it chooses to expose.
-
-Neither side reads the other's internal tables. That is what stops a backend
-migration from silently breaking your DAG at 6am, and it is why any hashing or
-dropping of personal data happens in the backend's view rather than here: the
-data never has to leave their database in the first place.
-
-This module writes to `analytics`. `read_app_table` below reads `app`, which is
-the other half of the same idea.
-
-The write-then-swap
--------------------
-Readers must never see a half-loaded table, so the load and the switch are
-separated:
-
-    1. create <table>__staging, empty
-    2. insert every row into it
-    3. inside one transaction:
-           drop table if exists <table>
-           alter table <table>__staging rename to <table>
-
-Note the `if exists` on step 3. The obvious version of this pattern renames the
-current table out of the way first, which cannot work the very first time you
-publish, because there is nothing to rename. Getting that wrong means the sync
-fails once, on the run you most want to see succeed.
-
-Readers see the old table until the transaction commits, then the new one.
-They never see an empty or partial table.
+Airflow runs this after dbt and the enrichment succeed. See the README, "The
+two schemas" and "The write-then-swap", for why it works the way it does.
 """
 
 import logging
@@ -53,9 +14,8 @@ from .warehouse import Queryable
 
 logger = logging.getLogger(__name__)
 
-# What a Databricks column becomes in Postgres. Anything not listed here is
-# stored as text, which is the honest default: it keeps the value rather than
-# guessing at it, and a column you did not think about does not fail the run.
+# What a Databricks column becomes in Postgres. Anything not listed becomes
+# text: keeping the value beats guessing at it.
 TYPE_MAP: dict[str, LiteralString] = {
     "BIGINT": "bigint",
     "INT": "integer",
@@ -71,47 +31,31 @@ TYPE_MAP: dict[str, LiteralString] = {
 
 
 def postgres_type(databricks_type: str) -> LiteralString:
-    """Translate one column type. Unknown types become text on purpose.
-
-    The return type is LiteralString because psycopg only accepts SQL it can
-    see was written here rather than assembled from input. Every value in the
-    table below is written here, which is the point.
-    """
+    """Translate one column type. LiteralString because psycopg insists."""
     return TYPE_MAP.get(databricks_type.upper().split("(")[0], "text")
 
 
 def read_mart(
     warehouse: Queryable, schema: str, table: str
 ) -> tuple[list[tuple[str, str]], list[list]]:
-    """Read a whole published table out of the warehouse.
-
-    Returns its columns and its rows. Reading everything is right at this size
-    and wrong at a hundred million: at that point you publish a window rather
-    than the whole table, and the shape of this function changes.
-    """
+    """Read a whole published table out of the warehouse, with its columns."""
     qualified = f"{warehouse.catalog}.{schema}.{table}"
     columns, rows = warehouse.query(f"select * from {qualified}")
     logger.info("read %d rows and %d columns from %s", len(rows), len(columns), qualified)
     if not rows:
-        # Publishing nothing over a good table is a data loss incident. It is
-        # also exactly what a broken upstream looks like, so it fails here.
         raise ValueError(f"{qualified} returned no rows: refusing to publish an empty mart")
     return columns, rows
 
 
 def read_app_table(dsn: str, table: str) -> list[dict]:
-    """Read one of the backend's exposed views, the inbound direction.
+    """Read one of the backend's exposed views.
 
-    `table` is unqualified and lives in the `app` schema, which is the only
-    schema this credential can see. That is deliberate: a typo reaches nothing
-    rather than reaching something private.
+    `app` is the only schema this credential can see, so a typo reaches
+    nothing rather than reaching something private.
     """
     statement = SQL("select * from app.{}").format(Identifier(table))
     with psycopg.connect(dsn) as connection, connection.cursor() as cursor:
         cursor.execute(statement)
-        # description is None for a statement that returns nothing. It cannot
-        # be here, but saying so beats an AttributeError three weeks from now
-        # when somebody points this at a stored procedure.
         names = [column.name for column in cursor.description or []]
         rows = [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
     logger.info("read %d rows from app.%s", len(rows), table)
@@ -123,16 +67,14 @@ def publish(
 ) -> int:
     """Replace the backend's copy of the table, return the row count written.
 
-    `schema` is `analytics`. This is the schema you own on their database, and
-    the only one this credential can write to.
+    Load into staging, then swap inside one transaction, so a reader sees the
+    whole old version or the whole new one and never a half-written table.
     """
     if not rows:
         raise ValueError("refusing to publish zero rows over an existing table")
 
-    # Names are composed with psycopg's own SQL objects rather than pasted into
-    # an f-string. Table and column names cannot be parameters, so this is what
-    # keeps a name arriving from the warehouse from becoming a statement of its
-    # own, and it is what the library's types insist on.
+    # Names are composed with psycopg's SQL objects, not pasted into an
+    # f-string: a table name cannot be a query parameter.
     staging = Identifier(schema, f"{table}__staging")
     published = Identifier(schema, table)
     definition = SQL(", ").join(
@@ -143,9 +85,6 @@ def publish(
     connection = psycopg.connect(dsn, autocommit=False)
     try:
         with connection.cursor() as cursor:
-            # Rebuilt every run rather than reused, so a column added to the
-            # mart does not need anyone to remember to drop the old staging
-            # table by hand.
             cursor.execute(SQL("drop table if exists {}").format(staging))
             cursor.execute(SQL("create table {} ({})").format(staging, definition))
             cursor.executemany(
@@ -156,8 +95,8 @@ def publish(
                 ),
                 rows,
             )
-            # The swap. Both statements land together or neither does, so a
-            # reader is never looking at a table that does not exist.
+            # The swap. `if exists` is what makes the very first publish work,
+            # when there is nothing to replace yet.
             cursor.execute(SQL("drop table if exists {}").format(published))
             cursor.execute(SQL("alter table {} rename to {}").format(staging, Identifier(table)))
         connection.commit()

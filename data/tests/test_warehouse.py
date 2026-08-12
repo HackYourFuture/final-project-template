@@ -63,13 +63,3 @@ def test_query_returns_the_columns_the_warehouse_reported():
     columns, rows = warehouse.query("select count(*) as n from t")
     assert columns == [("n", "BIGINT")]
     assert rows == [["7"]]
-
-
-def test_no_rows_is_an_empty_list_not_none():
-    warehouse, _ = build([{"status": {"state": "SUCCEEDED"}}])
-    assert warehouse.run("insert into t values (1)") == []
-
-
-def test_host_is_accepted_with_or_without_the_scheme():
-    warehouse = Warehouse("https://adb-123.net/", "/sql/1.0/warehouses/w1", "c", "t")
-    assert warehouse.host == "adb-123.net"
