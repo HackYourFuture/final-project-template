@@ -2,9 +2,11 @@ spring:
   application:
     name: hyf-project-backend
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/mydb}
-    username: ${DB_USER:admin}
-    password: ${DB_PASSWORD:password}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/project_db?currentSchema=app}
+    username: ${DB_USER:app_user}
+    password: ${DB_PASSWORD}
+  flyway:
+    schemas: app
 
 server:
   port: ${PORT:8080}
