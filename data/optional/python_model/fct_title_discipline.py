@@ -45,9 +45,13 @@ ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 # optional/README.md before the first backfill. Override it per model with
 # `+llm_model:` rather than editing this line.
 MODEL = "openai/gpt-oss-20b:free"
-# Titles per request. Large enough that one call does real work, small enough
-# that one bad response costs little to redo.
-BATCH_SIZE = 40
+# Titles per request, chosen from measurements rather than taste. Against
+# gpt-oss-20b:free, 200 and 400 titles both came back complete and correct;
+# 800 was cut off mid-JSON after six minutes. 200 leaves room below that and
+# keeps a 500-title backfill down to 3 requests out of the 50 a day the
+# account gets. Raise it and you save requests but risk a truncated answer,
+# which fails the whole batch rather than part of it.
+BATCH_SIZE = 200
 
 
 class ClassificationError(RuntimeError):

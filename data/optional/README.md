@@ -178,7 +178,7 @@ hundreds of titles, and tomorrow's file repeats most of them.
 **Incremental**, so a run only pays for titles it has never seen. The first run
 classifies everything; the second usually classifies a handful.
 
-**Batched**, so one request covers forty titles rather than one.
+**Batched**, so one request covers 200 titles rather than one.
 
 Drop any of the three and you are calling a paid API once per posting per day.
 On the sample source that is cents; on a real one it is the difference between
@@ -193,10 +193,22 @@ against `openai/gpt-oss-20b:free`:
 |---|---|---|---|
 | 40 | 40 | 100% | 43s |
 | 100 | 100 | 100% | 434s |
+| 200 | 200 | 100% | 409s |
+| 400 | 400 | 100% | 352s |
+| 800 | cut off mid-JSON | | 379s |
 
-The accuracy did not drop as the batch grew. The waiting did, steeply, which is
-why `BATCH_SIZE` is 40: big enough that one request does real work, small
-enough that a request comes back in under a minute.
+Read that table twice, because it says something unexpected. Accuracy did not
+drop as the batch grew, and neither did the time: 400 titles were *faster* than
+100. The waiting is mostly queueing on the free tier, not the model thinking,
+so a bigger batch is close to free.
+
+What does break is 800, where the answer stopped in the middle of its JSON.
+That is why `BATCH_SIZE` is 200: comfortably under the size that failed, and
+few enough requests that a 500-title backfill costs 3 of the day's 50 rather
+than 13.
+
+A truncated answer fails its whole batch, so raising `BATCH_SIZE` trades
+requests for the risk of redoing more work at once.
 
 The other limits worth knowing:
 
@@ -212,8 +224,8 @@ The other limits worth knowing:
 
 The model ships pointing at a free one, and free on OpenRouter means **50
 requests a day for the whole account**, not per team and not per key. All three
-teams draw on the same allowance. At forty titles per request that is up to
-2,000 titles a day, far more than this pipeline needs, but only if nobody
+teams draw on the same allowance. At 200 titles per request that is up to
+10,000 titles a day, far more than this pipeline needs, but only if nobody
 wastes it.
 
 Two habits keep you out of trouble:
