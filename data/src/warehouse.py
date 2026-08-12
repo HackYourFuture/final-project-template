@@ -27,11 +27,6 @@ REQUIRED = (
     "DATABRICKS_HOST",
     "DATABRICKS_HTTP_PATH",
     "DATABRICKS_CATALOG",
-    # Checked, not defaulted: an empty tenant builds a token URL with nothing
-    # in the middle, and the only symptom is a 404 that mentions neither.
-    "AZURE_TENANT_ID",
-    "DATABRICKS_CLIENT_ID",
-    "DATABRICKS_CLIENT_SECRET",
 )
 
 
@@ -61,10 +56,26 @@ def warehouse_id(http_path: str) -> str:
     return identifier
 
 
+def your_own_token() -> str:
+    """A Databricks token for whoever is signed in.
+
+    Your `az login` on your machine, the job's managed identity in Azure. No
+    secret either way, and the warehouse logs the query against the identity
+    that ran it rather than against a credential the whole team shares.
+    """
+    from azure.identity import DefaultAzureCredential
+
+    return DefaultAzureCredential().get_token(f"{DATABRICKS_RESOURCE}/.default").token
+
+
 def entra_token(
     tenant_id: str, client_id: str, client_secret: str, opener=urllib.request.urlopen
 ) -> str:
-    """Exchange the team service principal for a Databricks access token."""
+    """Exchange the team service principal for a Databricks access token.
+
+    This is how the scheduled run authenticates. Locally you should not need
+    it: see `your_own_token`.
+    """
     body = urllib.parse.urlencode(
         {
             "grant_type": "client_credentials",
@@ -111,15 +122,29 @@ class Warehouse:
         if missing:
             raise WarehouseError(
                 "missing settings: " + ", ".join(missing) + ". "
-                "These are the same values dbt uses; read the two credential "
-                "ones from Key Vault."
+                "These are the same values dbt uses, and none of them is a secret."
             )
-        token = entra_token(
-            tenant_id=os.environ["AZURE_TENANT_ID"],
-            client_id=os.environ["DATABRICKS_CLIENT_ID"],
-            client_secret=os.environ["DATABRICKS_CLIENT_SECRET"],
-            opener=opener,
-        )
+        # The team's service principal when it is configured, which is how the
+        # scheduled run authenticates. Otherwise you, which is how your own
+        # runs should: nothing to copy out of Key Vault and onto your laptop.
+        client_id = os.getenv("DATABRICKS_CLIENT_ID")
+        client_secret = os.getenv("DATABRICKS_CLIENT_SECRET")
+        if client_id and client_secret:
+            tenant_id = os.getenv("AZURE_TENANT_ID")
+            if not tenant_id:
+                raise WarehouseError(
+                    "DATABRICKS_CLIENT_ID is set but AZURE_TENANT_ID is not. An empty "
+                    "tenant builds a token URL with nothing in the middle, and the only "
+                    "symptom is a 404 that mentions neither."
+                )
+            token = entra_token(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret,
+                opener=opener,
+            )
+        else:
+            token = your_own_token()
         return cls(
             host=os.environ["DATABRICKS_HOST"],
             http_path=os.environ["DATABRICKS_HTTP_PATH"],
