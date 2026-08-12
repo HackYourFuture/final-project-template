@@ -47,18 +47,18 @@ def read_mart(
     return columns, rows
 
 
-def read_app_table(dsn: str, table: str) -> list[dict]:
-    """Read one of the backend's exposed views.
+def read_backend_table(dsn: str, table: str, schema: str = "public") -> list[dict]:
+    """Read one of the backend's own tables.
 
-    `app` is the only schema this credential can see, so a typo reaches
-    nothing rather than reaching something private.
+    Your credential has read and nothing else on their schema, so the worst a
+    mistake here can do is return the wrong rows.
     """
-    statement = SQL("select * from app.{}").format(Identifier(table))
+    statement = SQL("select * from {}").format(Identifier(schema, table))
     with psycopg.connect(dsn) as connection, connection.cursor() as cursor:
         cursor.execute(statement)
         names = [column.name for column in cursor.description or []]
         rows = [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
-    logger.info("read %d rows from app.%s", len(rows), table)
+    logger.info("read %d rows from %s.%s", len(rows), schema, table)
     return rows
 
 

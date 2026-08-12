@@ -20,7 +20,7 @@ flowchart LR
     DBT --> EN["Container Apps job<br/>enrichment"]
     EN --> PG[("Backend Postgres<br/>analytics schema")]
     PG --> BE["backend/"]
-    BE -.->|app schema| DBT
+    BE -.->|read their tables| DBT
     AF["Airflow<br/>daily"] -.-> ACA
     AF -.-> DBT
     AF -.-> EN
@@ -383,23 +383,31 @@ not something to work around in the DAG.
 
 ### Reading the app's data
 
-The `app` schema is the other direction: views the backend chooses to expose,
-for your models to join against. `src/sync.py` has `read_app_table` ready for
-it. Add a task once the backend has agreed a view with you, and keep it before
+The other direction: your credential can read the backend's own tables, so a
+model can join against how the application is actually being used.
+`src/sync.py` has `read_backend_table` ready for it. Add a task once you have
+agreed with the backend which table you are reading, and keep it before
 `dbt_build` so the models can use what it lands.
+
+Agreeing it matters more than it sounds. Their tables are theirs to change, and
+nothing warns you when they do: a column you depend on can disappear in a
+migration you never saw. Read as little as you need, and tell them what you
+read.
 
 ## The two schemas
 
-The two tracks meet through two schemas in the backend's database, and each
-side owns the one it writes:
+The two tracks meet in the backend's database, which has one schema per side:
 
 - **`analytics`** — you write, the backend reads. Your published marts.
-- **`app`** — the backend writes, you read. Views it chooses to expose.
+- **`public`** — the backend writes, you read. Their operational tables.
 
-Neither side reads the other's internal tables. That is what stops a backend
-migration from silently breaking your 6am run, and it is why anything personal
-is hashed or dropped in *their* view: the data never leaves their database in
-the first place.
+Neither side can write to the other's schema. That is what stops a stray
+publish from corrupting the application, and stops a backend deploy from
+overwriting your marts.
+
+Anything personal is your problem to handle the moment you read it. Hash it or
+drop it in your staging model, so it never reaches a mart and never leaves the
+warehouse.
 
 ### The write-then-swap
 
