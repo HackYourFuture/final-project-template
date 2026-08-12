@@ -1,15 +1,32 @@
-# Python packages available to your DAGs.
-# The Airflow runtime already ships Airflow itself.
+# Python packages added to the Airflow image, which already ships Airflow.
+#
+# Why this is not pyproject.toml, which you might reasonably expect:
+#
+#   - Astro builds this image with this folder as the context, so a file one
+#     level up cannot be copied into it.
+#   - These two lists answer different questions. pyproject.toml says what the
+#     container jobs need. This says what to add to an image that already has
+#     Airflow and its own large set of pinned dependencies. Installing a full
+#     lock file here can move those pins and break the image, in a way that
+#     only shows up when a DAG fails to parse.
+#
+# Keep this list short: it is what the tasks import, not everything the project
+# uses. Add a package when a task needs it.
 #
 # dbt is deliberately absent: it runs through uvx on Python 3.11 from the DAG,
 # because the Airflow image ships a newer Python than stable dbt-core supports.
-databricks-sql-connector>=3.4.0
+
+# publish_to_backend, through src/sync.py.
 psycopg[binary]>=3.2.0
+# src/warehouse.py loads .env so the same code runs on your machine.
+python-dotenv>=1.0.0
+# src/warehouse.py signs in with DefaultAzureCredential when no token is set.
+# The token for the management API is a plain IMDS call in src/aca.py and needs
+# nothing installed.
+azure-identity>=1.19.0
+
+# Not imported by any task today. They are here so that a task you add which
+# imports src/ingest.py or src/models.py works on the VM as it did on your
+# machine, rather than failing with ModuleNotFoundError after a deploy.
 pydantic>=2.9.0
 requests>=2.32.0
-python-dotenv>=1.0.0
-
-# Managed Identity and the Azure management API. There is no `az` binary in the
-# Airflow image and no Container Apps provider, so the ingest task starts the
-# container job over HTTPS with a token from the VM's own identity.
-azure-identity>=1.19.0
