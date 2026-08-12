@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { BACKEND_API_URL } from "@/lib/config";
 
 export function proxy(request: NextRequest) {
-  const backendApiUrl =
-    process.env.BACKEND_API_URL ?? "http://localhost:8080";
   const destination = new URL(
     request.nextUrl.pathname + request.nextUrl.search,
-    backendApiUrl,
+    BACKEND_API_URL,
   );
   return NextResponse.rewrite(destination);
 }
