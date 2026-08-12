@@ -26,6 +26,13 @@ dbt = ["dbt-core==1.10.9", "dbt-databricks==1.10.11"]
 dashboard = ["streamlit>=1.39.0", "pandas>=2.2.0", "psycopg[binary]>=3.2.0"]
 dev = ["pytest>=8.3.0", "ruff>=0.6.0"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Puts this folder on the import path, so tests import `src` the same way the
+# container does. Without it `from src.ingest import ...` only works when you
+# happen to run pytest from exactly the right directory.
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 100
 

@@ -36,11 +36,21 @@ services:
     depends_on:
       - backend
 
-  # The data pipeline. Not started by `docker compose up`: it is a job that
-  # runs and exits, not a service. Run it the way Azure will, in a container:
-  #   docker compose run --rm pipeline
+  # The two data jobs. Neither is started by `docker compose up`: they run and
+  # exit, they are not services. They share one image and differ only in the
+  # command, which is exactly how the two Container Apps jobs are configured in
+  # Azure.
+  #
+  #   docker compose build pipeline          build the image both jobs use
+  #   docker compose run --rm pipeline       the ingestion job
+  #   docker compose run --rm enrich         the enrichment job
+  #
+  # Neither can authenticate to Azure from your laptop: a container has no
+  # `az login` and no metadata service. Build here, run in Azure, and use
+  # `uv run python -m src.pipeline` when you want to run something locally.
   pipeline:
     build: ./data
+    image: final-project-pipeline
     profiles: [data]
     env_file: ./data/.env
     environment:
@@ -51,6 +61,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  enrich:
+    build: ./data
+    image: final-project-pipeline
+    profiles: [data]
+    env_file: ./data/.env
+    command: ["python", "-m", "src.enrich"]
 
 volumes:
   db-data:

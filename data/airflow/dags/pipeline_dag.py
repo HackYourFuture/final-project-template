@@ -1,41 +1,63 @@
 """Daily orchestration for the final project pipeline.
 
-Three steps, in this order:
+Five steps, in this order:
 
-    1. ingest   Start the Container Apps job. It fetches the source and lands
-                raw files in your team's Databricks volume.
-    2. dbt      Build staging and marts in your catalog, and run the tests.
-    3. publish  Copy the published mart into the backend's Postgres database.
+    ingest ──┐
+             ├─> dbt_build ──> enrich ──> publish_to_backend
+    inbound ─┘
 
-Why three separate tasks rather than one script: when step 2 fails you re-run
-step 2, not the fetch. And step 3 must not run when step 2 fails, or you
-publish a mart that failed its own tests. Airflow gives you both for free.
+    ingest       Start the ingestion Container Apps job. It fetches the source
+                 and lands raw JSON in your team's storage account, which the
+                 warehouse reads as a volume.
+    inbound      Copy the views the backend exposes in its `app` schema into
+                 your catalog, so dbt can join application data with source
+                 data. Skips cleanly until the backend has created one.
+    dbt_build    Build staging and marts in your catalog, run the tests, and
+                 record what happened in ops.dbt_test_runs.
+    enrich       Start the enrichment job, which adds what SQL cannot express.
+    publish      Copy the enriched mart into the backend's Postgres database.
 
-This file is a skeleton. Each task says what it has to do; you write the body.
+Why separate tasks rather than one script: when dbt fails you re-run dbt, not
+the fetch. And the publish must not run when dbt fails, or you hand the backend
+a mart that failed its own tests. Airflow gives you both for free.
 
-Set these as Airflow variables before the first run. They are names and hosts,
-not secrets:
-    AZURE_SUBSCRIPTION, AZURE_RESOURCE_GROUP, ACA_JOB_NAME,
+This pipeline runs end to end as it stands, against the default source. Change
+the source, the models and the enrichment to your own domain; the wiring here
+stays the same.
+
+Settings
+--------
+Every value below comes from an Airflow Variable or an environment variable of
+the same name, read at run time. They are names and hosts, not secrets:
+
+    AZURE_SUBSCRIPTION, AZURE_RESOURCE_GROUP, ACA_INGEST_JOB, ACA_ENRICH_JOB,
     DATABRICKS_HOST, DATABRICKS_HTTP_PATH, DATABRICKS_CATALOG, DBT_SCHEMA,
-    BACKEND_PG_HOST, BACKEND_PG_DB
+    BACKEND_PG_HOST, BACKEND_PG_DB, KEY_VAULT, TEAM
 
-Every actual secret comes from Key Vault at run time, through `keyvault()`
-below. Your VM has an identity that is allowed to read your team's secrets and
-nobody else's, so nothing is stored on the VM and a typo in a secret name fails
-with a 403 rather than reaching someone else's data. Never type a secret into
-this file: it is committed, and everyone on your team can read it.
+Every actual secret is fetched from Key Vault inside the task that needs it.
+Your VM has an identity that may read your team's secrets and nobody else's,
+so nothing is stored on the VM and a typo fails with a 403 rather than
+reaching another team's data. Never type a secret into this file: it is
+committed, and everyone can read it.
+
+The pipeline code itself lives in `data/src` and is on the Python path as
+`src`. One copy, used by the containers and by these tasks, and unit tested in
+`data/tests`.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import dag, task
+from airflow.exceptions import AirflowSkipException
+from airflow.sdk import Variable, dag, task
 from alerts import slack_alert
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ARGS = {
     "owner": "data-team",
@@ -47,40 +69,97 @@ DEFAULT_ARGS = {
     "on_failure_callback": slack_alert,
 }
 
-# Where the dbt project is mounted. Local Astro puts the project under
-# /usr/local/airflow; the team VM runs plain Airflow at /opt/airflow. The
-# override file sets this for local runs, so neither path is hardcoded here.
+# Where the dbt project is mounted. Local Astro puts it under
+# /usr/local/airflow; the team VM runs plain Airflow at /opt/airflow.
 DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/airflow/include/dbt")
 
-VAULT = "kv-hyf-data"
 
+def setting(name: str, default: str | None = None) -> str:
+    """Read one setting: environment first, then Airflow Variables.
 
-def azure_token(resource: str) -> str:
-    """A token for the VM's own identity, from the instance metadata service.
+    Two sources because the two are good at different things. Environment
+    variables are set once when the VM is built, which suits values that are
+    the same for every run. Variables can be changed from the UI without a
+    deploy, which suits everything else. Environment wins, so a machine can
+    always override what is in the database.
 
-    This is what Managed Identity looks like in practice. There is no client
-    secret anywhere: the VM asks Azure who it is, and Azure answers.
-
-    Pass "https://management.azure.com/" to talk to Azure itself, or
-    "https://vault.azure.net" to open Key Vault.
+    Called inside tasks, never at module scope: a DAG file is re-parsed every
+    few seconds, and a lookup up here would multiply by that.
     """
-    url = ("http://169.254.169.254/metadata/identity/oauth2/token"
-           f"?api-version=2018-02-01&resource={resource}")
-    request = urllib.request.Request(url, headers={"Metadata": "true"})
-    return json.load(urllib.request.urlopen(request, timeout=15))["access_token"]
+    value = os.environ.get(name) or Variable.get(name, default=default)
+    if value is None:
+        raise RuntimeError(
+            f"{name} is not set. Add it as an Airflow Variable (Admin -> "
+            "Variables) or as an environment variable on the machine."
+        )
+    return value
 
 
 def keyvault(secret_name: str) -> str:
     """One secret, fetched at run time. Never logged, never written to disk."""
-    token = azure_token("https://vault.azure.net")
-    url = f"https://{VAULT}.vault.azure.net/secrets/{secret_name}?api-version=7.4"
+    from src.aca import imds_token
+
+    token = imds_token("https://vault.azure.net")
+    url = (
+        f"https://{setting('KEY_VAULT', 'kv-hyf-data')}.vault.azure.net"
+        f"/secrets/{secret_name}?api-version=7.4"
+    )
     request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     return json.load(urllib.request.urlopen(request, timeout=20))["value"]
 
 
+def databricks_environment() -> dict[str, str]:
+    """The five values anything talking to the warehouse needs.
+
+    Built inside a task so the two Key Vault reads happen once per run rather
+    than once per parse.
+    """
+    team = setting("TEAM")
+    return {
+        "DATABRICKS_HOST": setting("DATABRICKS_HOST"),
+        "DATABRICKS_HTTP_PATH": setting("DATABRICKS_HTTP_PATH"),
+        "DATABRICKS_CATALOG": setting("DATABRICKS_CATALOG"),
+        "DATABRICKS_CLIENT_ID": keyvault(f"fp-databricks-client-id-{team}"),
+        "DATABRICKS_CLIENT_SECRET": keyvault(f"fp-databricks-client-secret-{team}"),
+    }
+
+
+def warehouse_client():
+    """A Warehouse built from Key Vault, for the tasks that query directly."""
+    from src.warehouse import Warehouse
+
+    os.environ.update(databricks_environment())
+    return Warehouse.from_env()
+
+
+def backend_dsn(role: str, password: str) -> str:
+    """A connection string for one specific role on the backend database.
+
+    One role per direction, never a shared login: the credential that publishes
+    marts cannot read the application's tables, and the credential that reads
+    them cannot write anything.
+    """
+    return (
+        f"host={setting('BACKEND_PG_HOST')} dbname={setting('BACKEND_PG_DB')} "
+        f"user={role} password={password} sslmode=require"
+    )
+
+
+def start_job(job_name: str) -> str:
+    """Start one Container Apps job and wait for it."""
+    from src.aca import imds_token, start_and_wait
+
+    return start_and_wait(
+        subscription=setting("AZURE_SUBSCRIPTION"),
+        resource_group=setting("AZURE_RESOURCE_GROUP"),
+        job_name=job_name,
+        token=imds_token("https://management.azure.com/"),
+    )
+
+
 @dag(
     dag_id="final_project_pipeline",
-    description="Ingest to the lakehouse, build dbt models, publish to the backend",
+    description="Ingest to the lakehouse, build dbt models, enrich, publish to the backend",
     start_date=datetime(2026, 1, 1, tzinfo=UTC),
     schedule="0 6 * * *",
     catchup=False,
@@ -89,70 +168,137 @@ def keyvault(secret_name: str) -> str:
 )
 def final_project_pipeline():
     @task
-    def ingest(**context) -> str:
-        """Start the Container Apps job and wait for it to finish.
+    def ingest() -> str:
+        """Fetch the source and land raw files in the team's storage account.
 
-        Pass the logical date through, so a re-run of an old day overwrites
-        that day's file instead of today's:
-            context["logical_date"].date().isoformat()
-
-        TODO: start the job, then poll its execution until it is Succeeded or
-        Failed. Raise on Failed. A task that starts a job and returns
-        immediately reports green while the job is still running, which makes
-        the dbt step build on data that is not there yet.
-
-        Your Airflow image has no `az` command and no Container Apps provider,
-        so this is an HTTP call. Use `azure_token()` below, then:
-
-            base = (f"https://management.azure.com/subscriptions/{SUBSCRIPTION}"
-                    f"/resourceGroups/{RESOURCE_GROUP}"
-                    f"/providers/Microsoft.App/jobs/{JOB_NAME}")
-
-            POST {base}/start?api-version=2024-03-01       to start it
-            GET  {base}/executions?api-version=2024-03-01  to poll status
-
-        Match the execution by the `name` the start call returns, and treat
-        anything other than Succeeded, Running or Pending as a failure.
+        The job itself decides which day it is writing, using the same UTC date
+        this run belongs to. Re-running an old day overwrites that day's file
+        rather than today's.
         """
-        raise NotImplementedError
+        return start_job(setting("ACA_INGEST_JOB"))
 
-    dbt_build = BashOperator(
-        task_id="dbt_build",
-        # dbt runs through uvx on Python 3.11: the Airflow image ships a newer
-        # Python than stable dbt-core supports.
-        #
-        # Both versions are pinned exactly, and they have to be. A wildcard like
-        # 'dbt-core==1.10.*' picks the newest 1.10 release, and dbt-databricks
-        # 1.10.11 refuses anything from 1.10.10 up, so the pair stops resolving
-        # the moment dbt-core ships a patch. If you bump one, bump both.
-        #
-        # TODO: point dbt at your own landing zone and check that a failing
-        # test fails the DAG. The project's variable is `landing_path`, and it
-        # ships as /Volumes/CHANGE_ME/..., so a scheduled run reads a volume
-        # that does not exist until you change it. Either edit vars in
-        # dbt_project.yml once, or pass it here:
-        #   --vars '{landing_path: /Volumes/<catalog>/landing/raw/<source>}'
-        bash_command=(
+    @task
+    def inbound_sync() -> int:
+        """Copy the backend's exposed views into the catalog.
+
+        This is the direction people forget. The backend publishes views in its
+        `app` schema, deliberately shaped and with anything personal already
+        hashed, and your models can join them with source data.
+
+        Skips until such a view exists, because a red DAG on day one teaches
+        nothing. Set APP_INBOUND_TABLE when the backend has agreed one.
+        """
+        table = os.environ.get("APP_INBOUND_TABLE") or Variable.get(
+            "APP_INBOUND_TABLE", default=None
+        )
+        if not table:
+            raise AirflowSkipException(
+                "APP_INBOUND_TABLE is not set: the backend has not exposed a "
+                "view in the app schema yet. Agree one, then set the variable."
+            )
+
+        from src.enrich import sql_literal
+        from src.sync import read_app_table
+
+        password = keyvault("fp-pg-app-reader-" + setting("TEAM"))
+        rows = read_app_table(backend_dsn("app_reader", password), table)
+        if not rows:
+            logger.info("app.%s is empty, nothing to land", table)
+            return 0
+
+        warehouse = warehouse_client()
+        catalog, schema = warehouse.catalog, setting("DBT_SCHEMA")
+        columns = list(rows[0])
+        target = f"{catalog}.{schema}_app.{table}"
+        warehouse.run(f"create schema if not exists {catalog}.{schema}_app")
+        warehouse.run(
+            f"create or replace table {target} "
+            f"({', '.join(f'{name} string' for name in columns)})"
+        )
+        values = ", ".join(
+            "(" + ", ".join(sql_literal(str(row[name])) for name in columns) + ")"
+            for row in rows
+        )
+        warehouse.run(f"insert into {target} values {values}")
+        logger.info("landed %d rows in %s", len(rows), target)
+        return len(rows)
+
+    @task
+    def dbt_build() -> str:
+        """Build the models, run the tests, record the outcome.
+
+        dbt runs through uvx on Python 3.11: the Airflow image ships a newer
+        Python than stable dbt-core supports. Both versions are pinned exactly,
+        and they have to be. A wildcard like 'dbt-core==1.10.*' picks the newest
+        1.10 release, and dbt-databricks 1.10.11 refuses anything from 1.10.10
+        up, so the pair stops resolving the moment dbt-core ships a patch. If
+        you bump one, bump both.
+        """
+        import subprocess
+
+        from src.dbt_results import parse_run_results, publish_results
+
+        databricks = databricks_environment()
+        command = (
             "uvx --python 3.11 --from 'dbt-core==1.10.9' "
             "--with 'dbt-databricks==1.10.11' "
             f"dbt build --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
-        ),
-    )
+        )
+        result = subprocess.run(
+            command,
+            shell=True,
+            check=False,
+            env={**os.environ, **databricks},
+            text=True,
+            capture_output=True,
+            timeout=1800,
+        )
+        print(result.stdout[-8000:])
+
+        # Recorded before the task's fate is decided, so a failing test is
+        # written down rather than lost. A failed run is when the record
+        # matters most.
+        os.environ.update(databricks)
+        results = parse_run_results(f"{DBT_PROJECT_DIR}/target/run_results.json")
+        try:
+            from src.warehouse import Warehouse
+
+            publish_results(Warehouse.from_env(), results)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("could not publish dbt results: %s", error)
+
+        if result.returncode != 0:
+            print(result.stderr[-4000:])
+            raise RuntimeError(f"dbt build exited {result.returncode}")
+
+        summary = [line for line in result.stdout.splitlines() if "PASS=" in line]
+        return summary[-1].strip() if summary else "dbt build finished"
+
+    @task
+    def enrich() -> str:
+        """Add the column dbt cannot: see data/src/enrich.py for why."""
+        return start_job(setting("ACA_ENRICH_JOB"))
 
     @task
     def publish_to_backend() -> int:
-        """Copy the published mart into the backend's database.
+        """Copy the enriched mart into the backend's database, atomically.
 
-        Runs only after dbt succeeds, which is what the dependency below buys
-        you. Use src/sync.py, and return the row count so the log says how much
-        was published.
-
-        TODO: implement, then answer one question in your README: what does the
-        backend see while this task is halfway through?
+        Runs only after everything upstream succeeded, which is what the
+        dependency below buys you. The row count comes back so the log says how
+        much was published.
         """
-        raise NotImplementedError
+        from src.sync import publish, read_mart
 
-    ingest() >> dbt_build >> publish_to_backend()
+        warehouse = warehouse_client()
+        columns, rows = read_mart(
+            warehouse, setting("DBT_SCHEMA"), "fct_postings_enriched"
+        )
+        password = keyvault("fp-pg-analytics-writer-" + setting("TEAM"))
+        dsn = backend_dsn("analytics_writer", password)
+        return publish(dsn, "analytics", "fct_postings", columns, rows)
+
+    transform = dbt_build()
+    [ingest(), inbound_sync()] >> transform >> enrich() >> publish_to_backend()
 
 
 final_project_pipeline()
