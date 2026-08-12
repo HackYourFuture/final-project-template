@@ -7,8 +7,12 @@ dbt writes a full account of every model and test it ran to
 Which means "are the tests passing?" can only be answered by whoever has SSH
 access and a reason to look.
 
-Landing it in the warehouse turns test results into data. The health page reads
-this table, and so can anyone else, without touching Airflow.
+Landing it in the warehouse turns test results into data: something you can
+query with SQL, chart, or join to anything else, without touching Airflow.
+
+Nothing reads the table yet. The health page in optional/streamlit/ queries the
+backend database only, so wiring it to show test results is work you would be
+doing, not something that starts happening once you copy this file in.
 
 Nothing here raises on a missing or broken file. dbt's own exit code already
 decides whether the pipeline failed; losing the bookkeeping is annoying, but

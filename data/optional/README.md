@@ -11,9 +11,12 @@ pipeline running and wants to go further.
 | `dbt_results/` | Records every dbt run in `<catalog>.ops.dbt_test_runs` | 10 |
 
 The Streamlit page reads the backend's database only, so it reports the end of
-the pipeline and nothing before it. Adding `dbt_results` gives it test results
-to show as well, which is the pair worth building if you want a health page
-that answers more than "did anything arrive?".
+the pipeline and nothing before it. `dbt_results` puts test outcomes in the
+warehouse, where the page could read them too, but the two are not joined up
+for you: the page queries Postgres, and pointing a panel at
+`<catalog>.ops.dbt_test_runs` is the piece you would write. That pair is the
+one worth building if you want a health page that answers more than "did
+anything arrive?".
 
 Both write to the `ops` schema, which the scheduled run owns. Your own account
 can read it and not write it, so run these through Airflow rather than from
@@ -25,12 +28,17 @@ dbt writes an account of every model and test to `target/run_results.json`,
 which then sits on the machine that ran it. Landing it in the warehouse turns
 "are the tests passing?" into a question anyone can answer with SQL.
 
-Copy `dbt_results.py` into `src/`, then add these four lines to the `dbt_build`
-task in the DAG, after dbt has run and before the exit code is checked:
+Copy `dbt_results.py` into `src/`, then add this to the `dbt_build` task in the
+DAG, after dbt has run and before the exit code is checked:
 
 ```python
 from src.dbt_results import parse_run_results, publish_results
 from src.warehouse import Warehouse
+
+# dbt got these settings as subprocess environment, which does not change this
+# process. Without this line Warehouse.from_env() cannot find DATABRICKS_HOST
+# and the task fails after a dbt run that went fine.
+os.environ.update(databricks_environment())
 
 results = parse_run_results(f"{DBT_PROJECT_DIR}/target/run_results.json")
 publish_results(Warehouse.from_env(), results)
@@ -39,6 +47,11 @@ publish_results(Warehouse.from_env(), results)
 Publish before deciding the task's fate, so a failing test is recorded rather
 than lost. Nothing in it raises: dbt's exit code already decides whether the
 pipeline failed.
+
+The table lives in the `ops` schema, which the scheduled run owns. Your own
+account can read it and not write it, so this runs in Airflow, not from your
+machine. Trying it locally gives you `PERMISSION_DENIED`, which is the split
+working rather than something misconfigured.
 
 
 ## python_model
