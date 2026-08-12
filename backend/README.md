@@ -4,59 +4,46 @@ A Spring Boot REST API template for the HackYourFuture final project.
 
 **Stack:** Java 25 · Spring Boot 4.1 · PostgreSQL · Flyway · Spring Security · springdoc-openapi (Scalar) · Lombok · Maven
 
----
 
 ## Quick start
 
-You need **JDK 25**, **Python 3** and a PostgreSQL database (in Docker, in the cloud, or installed locally). Maven comes with the project via the `mvnw` wrapper.
+You need **JDK 25** and a PostgreSQL database (in Docker, in the cloud, or installed locally).
 
-Three steps: start a database, create the schemas and roles, then run the app as `app_user`.
-
-**1. Start a database.** Its `admin` / `password` account is a superuser, used only for the setup in step 2:
+### 1. Start a database
+With the default `admin` / `password` credentials. Do not use those credentials in production! 
 
 ```bash
 docker run --name hyf-postgres -e POSTGRES_DB=postgres -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:18
 ```
+### 2. Set up configuration
+Edit `application.yaml` and `application-dev.yaml` files to point at your database host, port, name, schema, and credentials. The defaults values should work with the Docker command above. 
 
-**2. Create the database, schemas and roles.** [`db-setup.py`](../scripts/db-setup.py) creates the `project_db` database, an `app` and an `analytics` schema inside it, and one login role per schema — `app_user` and `analytics_user` — each owning its own schema and holding read-only access to the other:
+Set in your IDE the `dev` profile as active and override any default environment variables to match your local environment.
 
-```bash
-pip install "psycopg[binary]"
-```
-
-```bash
-python ../scripts/db-setup.py --host localhost --port 5432 --admin-user admin --admin-password password
-```
-
-`admin` / `password` here are the container's credentials from step 1. The script prints a generated password per role — **copy the `app_user` one, it is shown only once.** Re-running is safe: it changes nothing that already exists, and asks before replacing an existing role's password.
-
-**3. Run the app as `app_user`,** never as `admin`. Paste the password from step 2:
+### 3. Start the application
 
 ```bash
-DB_URL='jdbc:postgresql://localhost:5432/project_db?currentSchema=app' DB_USER=app_user DB_PASSWORD='<app_user password>' ./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
-
 Open the API docs at **http://localhost:8080/api/docs**
-
-`app_user` owns the `app` schema, so Flyway creates its history table and `app.users` there on startup with no admin rights involved. Keep `?currentSchema=app` in the URL — the repository SQL uses unqualified table names and resolves them through it.
-
-On Windows use `mvnw.cmd`. Setting the three `DB_*` variables once in your IDE's run configuration (or your shell profile) saves repeating them.
 
 ---
 
 ## API docs
+The Spring Boot auto generates a special file `openapi.yaml` that fully lists all your endpoints and objects in a standard
+well known format. This format works with many tools like Scalar to host a nice HTML page with all your API endpoints.
 
-| | URL |
-|---|---|
-| **Scalar UI** — browse and try endpoints | http://localhost:8080/api/docs |
-| **OpenAPI spec** — for Postman, or generating a frontend client | http://localhost:8080/api/docs/openapi.yaml |
+|                                           | URL |
+|-------------------------------------------|---|
+| **Scalar UI** - browse and try endpoints  | http://localhost:8080/api/docs |
+| **OpenAPI spec** - for tools like postman | http://localhost:8080/api/docs/openapi.yaml |
 
 Both are public (see [`SecurityConfig`](src/main/java/nl/hackyourfuture/project/backend/config/SecurityConfig.java)). Change a controller, restart, refresh — your endpoint is there.
 
 ---
 
 ## Building
-
+### Build an executable
 Build a runnable JAR into `target/`:
 
 ```bash
@@ -75,7 +62,7 @@ Run the tests:
 ./mvnw test
 ```
 
-> `BackendApplicationTests.contextLoads()` boots the whole Spring context, so it needs a reachable database — set the same three `DB_*` variables as in [Quick start](#quick-start) step 3.
+> `BackendApplicationTests.contextLoads()` boots the whole Spring context, so it needs a reachable database.
 
 Check code style with Checkstyle ([`checkstyle.xml`](checkstyle.xml)):
 
@@ -100,19 +87,16 @@ Stage 1 compiles the JAR in a Maven image; stage 2 copies just that JAR into a s
 Pull the published image from GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/<org>/backend:latest
+docker pull ghcr.io/<org>/<repo>/backend:latest
 ```
 
 Run it, pointing at your database:
 
 ```bash
-docker run -p 8080:8080 -e DB_URL='jdbc:postgresql://my-db-host:5432/project_db?currentSchema=app' -e DB_USER=app_user -e DB_PASSWORD=secret ghcr.io/<org>/backend:latest
+docker run -p 8080:8080 -e DB_HOST=my-db-host -e DB_PORT=5432 -e DB_NAME=project_db -e DB_SCHEMA=public -e DB_USER=admin -e DB_PASSWORD=password ghcr.io/<org>/backend:latest
 ```
 
-Two things to watch:
-
-- **`localhost` inside a container means the container itself.** To reach a database on your own machine, use `host.docker.internal`.
-- **Don't commit credentials** in a `docker run` command. Use `--env-file secrets.env` (gitignored), or your host's secret manager.
+ Note: `localhost` inside a container means the container itself. To reach a database on your own machine, use `host.docker.internal`.
 
 ---
 
@@ -122,15 +106,18 @@ All configuration lives in [`application.yaml`](src/main/resources/application.y
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/project_db?currentSchema=app` | JDBC URL, must start with `jdbc:postgresql://`. Keep `?currentSchema=app` |
-| `DB_USER` | — | Database username (use `app_user`) |
-| `DB_PASSWORD` | — | Database password (from `db-setup.py`) |
+| `DB_HOST` | `localhost` | Database host (server name or IP address) |
+| `DB_PORT` | `5432` | Database port |
+| `DB_NAME` | `postgres` | Database name |
+| `DB_SCHEMA` | `public` | Database schema |
+| `DB_USER` | `admin` | Database username |
+| `DB_PASSWORD` | `password` | Database password |
 | `PORT` | `8080` | Port the server listens on |
-| `SPRING_PROFILES_ACTIVE` | — | `dev` or `prod`. The Docker image defaults to `prod` |
+| `SPRING_PROFILES_ACTIVE` | `dev` | Active profile: `dev` or `prod` |
 
 `application-dev.yaml` and `application-prod.yaml` layer on top when the matching profile is active. They only set logging levels right now — put anything environment-specific there.
 
-> **The three `DB_*` defaults are a fallback, not the setup described in [Quick start](#quick-start).** They name a database no longer created by these instructions, and an admin account the app should not use. Always run with `project_db` and the `app_user` credentials from `db-setup.py`, locally and in production, and never commit real secrets.
+> **The `DB_*` defaults are for local development.**. In production you should set them to a secure database and credentials.
 
 Any Spring property can be set this way: upper-case it and replace `.` with `_`, so `server.port` becomes `SERVER_PORT`.
 
@@ -208,7 +195,7 @@ curl http://localhost:8080/api/docs/openapi.yaml -o openapi.yaml
 
 ---
 
-## Migrations
+## DB Migrations
 
 The schema is managed by **Flyway** in [`db/migration`](src/main/resources/db/migration). On startup it applies any migration that hasn't run yet, tracking them in a `flyway_schema_history` table — so everyone's schema matches, including production.
 
@@ -234,7 +221,7 @@ Images are tagged `latest`, `1.0.<run number>`, and `main-sha-<short sha>`.
 
 Adding products, bottom-up:
 
-1. Migration — `V3__create_products_table.sql`
+1. Migration — `V2__create_products_table.sql`
 2. Create the `product/` package next to `user/`
 3. `Product.java` mirroring the table
 4. `ProductRepository.java` with a `RowMapper` and your SQL

@@ -1,12 +1,3 @@
-spring:
-  datasource:
-    # e.g: jdbc:postgresql://server:5432/project_db?currentSchema=app
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-  flyway:
-    schemas: app
-
 logging:
   level:
     root: INFO
