@@ -325,6 +325,26 @@ You can create and own `dev_` schemas and only read `analytics`. Point your
 error, which is a much better afternoon than discovering at the demo that your
 test data went out to the backend.
 
+### Before any of that: look at the source
+
+When you point the pipeline at a new API, the first question is what it
+actually returns, and you do not need a cloud account to answer it:
+
+```bash
+uv run python -m src.ingestion.pipeline --local     # writes local-landing/
+```
+
+It fetches and validates exactly as a real run does, then writes the file to
+your own disk instead of the landing zone, in the same newline-delimited format
+dbt would read. Open it, work out which fields matter, and write the renames in
+`stg_*.sql` against something you have seen rather than something you assume.
+`--local` takes an optional directory if you want it somewhere else, and it is
+the one mode that needs no `STORAGE_ACCOUNT`.
+
+> This is a look, not a stage. The SQL warehouse cannot read your laptop, so
+> there is no step where you land locally and then upload it. When the shape
+> looks right, drop the flag and the same command writes the `dev` container.
+
 The loop, start to finish:
 
 ```bash

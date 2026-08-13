@@ -233,3 +233,7 @@ airflow_settings.yaml
 # --- data track: local secrets ---
 data/.env
 data/airflow/.env
+
+# --- data track: `--local` ingestion output, raw source data ---
+data/local-landing/
+local-landing/
