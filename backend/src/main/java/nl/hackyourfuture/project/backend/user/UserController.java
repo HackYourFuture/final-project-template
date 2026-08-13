@@ -22,7 +22,7 @@ import java.util.UUID;
 @Tag(name = "Users", description = "Operations on user accounts")
 public class UserController {
 
-    private final UserService userService;
+    private final UserS ervice userService;
 
     @GetMapping
     @Operation(summary = "List all users", description = "Returns every user account currently stored.")
