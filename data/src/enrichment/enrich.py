@@ -1,6 +1,6 @@
 """The enrichment job: add to the mart what SQL cannot express well.
 
-    uv run python -m src.enrich
+    uv run python -m src.enrichment.enrich
 
 Here that is a classifier over job titles. Replace it with your own logic: this
 file is the one place in the pipeline where domain rules live. See the README,
@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 
-from .warehouse import Queryable, Warehouse, WarehouseError
+from ..common.warehouse import Queryable, Warehouse, WarehouseError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("enrich")

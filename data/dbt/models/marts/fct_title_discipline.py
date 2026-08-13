@@ -1,6 +1,6 @@
 # OPTIONAL, and disabled. `enabled: false` in dbt_project.yml keeps it out of
 # every build until your team turns it on, because it calls an LLM and needs an
-# API key first. It does the same job as src/enrich.py.
+# API key first. It does the same job as src/enrichment/enrich.py.
 # See ../../../optional/README.md.
 """Classify job titles with an LLM, as a dbt model rather than a container.
 

@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from src.ingest import parse_records
-from src.models import Posting
+from src.ingestion.ingest import parse_records
+from src.ingestion.models import Posting
 
 GOOD = {
     "slug": "data-engineer-acme",

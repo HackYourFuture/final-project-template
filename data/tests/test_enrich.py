@@ -9,8 +9,8 @@ rather than a gamble.
 import pytest
 from conftest import FakeWarehouse
 
-from src.enrich import UNCLASSIFIED, classify, enrich, sql_literal
-from src.warehouse import WarehouseError
+from src.common.warehouse import WarehouseError
+from src.enrichment.enrich import UNCLASSIFIED, classify, enrich, sql_literal
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,7 @@
 import pytest
 from conftest import RecordingOpener
 
-from src.warehouse import Warehouse, WarehouseError, warehouse_id
+from src.common.warehouse import Warehouse, WarehouseError, warehouse_id
 
 
 def build(answers: list[dict]) -> tuple[Warehouse, RecordingOpener]:

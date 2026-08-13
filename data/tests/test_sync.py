@@ -8,7 +8,7 @@ table that is briefly missing, which nobody reproduces on demand.
 import pytest
 from conftest import FakeWarehouse
 
-from src import sync
+from src.publishing import sync
 
 COLUMNS = [
     ("posting_id", "STRING"),

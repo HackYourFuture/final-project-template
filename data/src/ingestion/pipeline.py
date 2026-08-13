@@ -1,6 +1,6 @@
 """The ingestion job: fetch, validate, land. This is what the container runs.
 
-    uv run python -m src.pipeline [--run-date YYYY-MM-DD]
+    uv run python -m src.ingestion.pipeline [--run-date YYYY-MM-DD]
 
 Settings come from the environment: .env on your machine, the job definition in
 Azure. Every one is a name or a URL. There is no secret here, because the job

@@ -5,7 +5,7 @@
 # Running it on your own machine will not authenticate: there is no `az login`
 # and no Azure metadata service inside a container, so DefaultAzureCredential
 # has nothing to use. The image gets its identity from Azure when the Container
-# Apps job runs it. Locally, run `uv run python -m src.pipeline` instead.
+# Apps job runs it. Locally, run `uv run python -m src.ingestion.pipeline` instead.
 #
 # This is the image you push to Azure Container Registry and run as a
 # Container Apps Job, exactly as in Week 6.
@@ -25,4 +25,4 @@ RUN uv pip install --system --no-cache -r pyproject.toml
 
 COPY src/ ./src/
 
-CMD ["python", "-m", "src.pipeline"]
+CMD ["python", "-m", "src.ingestion.pipeline"]

@@ -163,7 +163,7 @@ jobs:
           registry="${{ vars.ACR_NAME }}.azurecr.io"
           # One image, both container jobs. The ingestion job runs it as it
           # is; the enrichment job runs the same image with its command set to
-          # `python -m src.enrich`. Two images would mean two builds, two tags
+          # `python -m src.enrichment.enrich`. Two images would mean two builds, two tags
           # to keep in step, and two places for a dependency to drift.
           #
           # Two tags. Point your Container Apps jobs at the commit SHA, never at

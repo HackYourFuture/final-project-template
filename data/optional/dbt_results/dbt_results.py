@@ -23,8 +23,8 @@ import json
 import logging
 from pathlib import Path
 
-from src.enrich import sql_literal
-from src.warehouse import Queryable
+from src.common.warehouse import Queryable
+from src.enrichment.enrich import sql_literal
 
 logger = logging.getLogger(__name__)
 

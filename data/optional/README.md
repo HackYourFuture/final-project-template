@@ -38,7 +38,7 @@ DAG, after dbt has run and before the exit code is checked:
 
 ```python
 from src.dbt_results import parse_run_results, publish_results
-from src.warehouse import Warehouse
+from src.common.warehouse import Warehouse
 
 # dbt got these settings as subprocess environment, which does not change this
 # process. Without this line Warehouse.from_env() cannot find DATABRICKS_HOST
@@ -61,7 +61,7 @@ working rather than something misconfigured.
 
 ## python_model
 
-`src/enrich.py` classifies titles with a dictionary, in a container. This does
+`src/enrichment/enrich.py` classifies titles with a dictionary, in a container. This does
 the same job with an LLM, as a dbt model, and the interesting part is what
 changes and what does not.
 
@@ -175,7 +175,7 @@ If everything came back `other`, the model did not answer in the shape the
 code expects. Check the run's log in Databricks rather than changing the
 prompt: the error names the cause.
 
-**4. Join it in a SQL model,** the same way `src/enrich.py`'s output is joined
+**4. Join it in a SQL model,** the same way `src/enrichment/enrich.py`'s output is joined
 today:
 
 ```sql

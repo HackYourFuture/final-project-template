@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from src import storage
+from src.ingestion import storage
 
 
 def test_explicit_run_date_wins():

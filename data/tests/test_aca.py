@@ -7,7 +7,7 @@ it would hide well: the pipeline stays green and only the numbers go wrong.
 import pytest
 from conftest import RecordingOpener
 
-from src.aca import JobFailed, start_and_wait
+from src.common.aca import JobFailed, start_and_wait
 
 STARTED = {"name": "job-ingest-abc123"}
 

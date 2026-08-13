@@ -52,16 +52,19 @@ two Postgres roles rather than an agreement.
 Everything below works. The "change this" column says what a team normally
 edits, not what is missing.
 
+The Python is grouped by pipeline stage, so the folders match the four boxes in
+the diagram above. `common/` is what more than one stage needs.
+
 | Path | What it does | Change this? |
 |---|---|---|
-| `src/models.py` | A Pydantic model for job postings | Yes: your source's shape |
-| `src/ingest.py` | Calls the API, validates, counts rejects | The parsing, if your source is nested |
-| `src/storage.py` | Lands raw JSON in your team's landing zone | Rarely |
-| `src/pipeline.py` | The ingestion job: settings, fetch, validate, land | Rarely |
-| `src/enrich.py` | The enrichment job: classifies each posting in Python | Yes: this is your domain logic |
-| `src/warehouse.py` | Runs SQL against your warehouse over HTTP | No |
-| `src/sync.py` | Publishes the mart into the backend's database, atomically | Rarely |
-| `src/aca.py` | Starts a container job and waits for it | No |
+| `src/ingestion/models.py` | A Pydantic model for job postings | Yes: your source's shape |
+| `src/ingestion/ingest.py` | Calls the API, validates, counts rejects | The parsing, if your source is nested |
+| `src/ingestion/storage.py` | Lands raw JSON in your team's landing zone | Rarely |
+| `src/ingestion/pipeline.py` | The ingestion job's entrypoint: settings, fetch, validate, land | Rarely |
+| `src/enrichment/enrich.py` | The enrichment job: classifies each posting in Python | Yes: this is your domain logic |
+| `src/publishing/sync.py` | Publishes the mart into the backend's database, atomically | Rarely |
+| `src/common/warehouse.py` | Runs SQL against your warehouse over HTTP | No |
+| `src/common/aca.py` | Starts a container job and waits for it | No |
 | `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
 | `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
 | `tests/` | Unit tests, no credentials needed, under a second | Add as you build |
@@ -153,7 +156,7 @@ propagated yet. It can take a few minutes after it is granted.
 
 ```bash
 uv sync --all-extras
-uv run python -m src.pipeline
+uv run python -m src.ingestion.pipeline
 ```
 
 `--all-extras`, not one extra at a time: `uv sync` makes the environment match
@@ -199,7 +202,7 @@ after that is shaping.
 posting, and writes `fct_postings_enriched` next to it.
 
 ```bash
-uv run python -m src.enrich
+uv run python -m src.enrichment.enrich
 ```
 
 **10. Run the tests.** They need no credentials and no network, so they are the
@@ -240,9 +243,9 @@ The loop, start to finish:
 
 ```bash
 uv run pytest                              # no credentials needed at all
-uv run python -m src.pipeline              # lands in dev/your-name
+uv run python -m src.ingestion.pipeline              # lands in dev/your-name
 cd dbt && uv run --env-file ../.env dbt build && cd ..   # builds dev_yourname
-uv run python -m src.enrich                # adds discipline, same schema
+uv run python -m src.enrichment.enrich                # adds discipline, same schema
 ```
 
 `dbt build` needs no `--vars`: it reads `LANDING_PATH` from the same `.env`
@@ -294,7 +297,7 @@ uv run ty check src tests               # types
 Run them before you push and the pull request goes green first time. Two of
 them will teach you something the first week: `ruff` refuses a `datetime` with
 no timezone, and `ty` refuses SQL built by pasting a name into a string, which
-is why `src/sync.py` composes statements with `psycopg.sql` instead.
+is why `src/publishing/sync.py` composes statements with `psycopg.sql` instead.
 
 ### Running the whole stack locally
 
@@ -314,7 +317,7 @@ container there is no `az login` and no Azure metadata service, so
 `DefaultAzureCredential` has nothing to authenticate with and the run ends in a
 wall of "credential unavailable" messages. That is correct behaviour: the image
 gets its identity from Azure when the Container Apps job runs it. To exercise
-the ingestion on your machine, use `uv run python -m src.pipeline`, which
+the ingestion on your machine, use `uv run python -m src.ingestion.pipeline`, which
 authenticates as you.
 
 ## Making it yours
@@ -323,10 +326,10 @@ The template ships a job-postings example so the shape is concrete. Swapping in
 your team's source is five edits:
 
 1. `.env`: point `SOURCE_API_URL` and `SOURCE_NAME` at your source.
-2. `src/models.py`: change the model to match your records.
+2. `src/ingestion/models.py`: change the model to match your records.
 3. `dbt/models/`: rename the models and columns to your domain.
 4. `dbt/models/marts/_fct_postings.yml`: rewrite the contract.
-5. `src/enrich.py`: replace the classifier with whatever your product needs.
+5. `src/enrichment/enrich.py`: replace the classifier with whatever your product needs.
 
 Do this in your first two days. Everything after that builds on the shape you
 choose here.
@@ -366,7 +369,7 @@ place with every test still passing, and nobody finds out for a week.
 
 ## Talking to the warehouse
 
-`src/warehouse.py` sends statements over the Statement Execution API, which is
+`src/common/warehouse.py` sends statements over the Statement Execution API, which is
 plain HTTPS. `databricks-sql-connector` would do the same over Thrift and a
 much larger dependency tree.
 
@@ -389,7 +392,7 @@ everything else. The enrichment job exists for the work that is not SQL.
 Here it reads each job title and decides which discipline the posting belongs
 to. As SQL that is a hundred-line `CASE` nobody dares change; as Python it is a
 dictionary with unit tests, and the day you replace it with a real model or a
-call to another service, only `src/enrich.py` changes.
+call to another service, only `src/enrichment/enrich.py` changes.
 
 Keep that seam. Things that belong in the container rather than in dbt: calling
 another service, anything with a library behind it, and anything you want to
@@ -451,7 +454,7 @@ one pipeline.
 
 The other direction: your credential can read the backend's own tables, so a
 model can join against how the application is actually being used.
-`src/sync.py` has `read_backend_table` ready for it. Add a task once you have
+`src/publishing/sync.py` has `read_backend_table` ready for it. Add a task once you have
 agreed with the backend which table you are reading, and keep it before
 `dbt_build` so the models can use what it lands.
 

@@ -76,7 +76,7 @@ def secret(env_name: str, secret_name: str) -> str:
     if from_env:
         return from_env
 
-    from src.aca import imds_token
+    from src.common.aca import imds_token
 
     token = imds_token("https://vault.azure.net")
     url = (
@@ -109,7 +109,7 @@ def databricks_environment() -> dict[str, str]:
 
 def start_job(job_name: str) -> str:
     """Start one Container Apps job and wait for it."""
-    from src.aca import imds_token, start_and_wait
+    from src.common.aca import imds_token, start_and_wait
 
     return start_and_wait(
         subscription=setting("AZURE_SUBSCRIPTION"),
@@ -158,14 +158,14 @@ def final_project_pipeline():
 
     @task
     def enrich() -> str:
-        """Add the column dbt cannot: see data/src/enrich.py for why."""
+        """Add the column dbt cannot: see data/src/enrichment/enrich.py for why."""
         return start_job(setting("ACA_ENRICH_JOB"))
 
     @task
     def publish_to_backend() -> int:
         """Copy the enriched mart into the backend's database, atomically."""
-        from src.sync import publish, read_mart
-        from src.warehouse import Warehouse
+        from src.common.warehouse import Warehouse
+        from src.publishing.sync import publish, read_mart
 
         os.environ.update(databricks_environment())
         columns, rows = read_mart(

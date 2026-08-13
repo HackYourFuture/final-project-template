@@ -47,7 +47,7 @@ services:
   #
   # Neither can authenticate to Azure from your laptop: a container has no
   # `az login` and no metadata service. Build here, run in Azure, and use
-  # `uv run python -m src.pipeline` when you want to run something locally.
+  # `uv run python -m src.ingestion.pipeline` when you want to run something locally.
   pipeline:
     build: ./data
     image: final-project-pipeline
@@ -66,7 +66,7 @@ services:
     image: final-project-pipeline
     profiles: [data]
     env_file: ./data/.env
-    command: ["python", "-m", "src.enrich"]
+    command: ["python", "-m", "src.enrichment.enrich"]
 
 volumes:
   db-data:

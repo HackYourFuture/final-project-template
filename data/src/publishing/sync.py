@@ -10,7 +10,7 @@ from typing import LiteralString
 import psycopg
 from psycopg.sql import SQL, Identifier, Placeholder
 
-from .warehouse import Queryable
+from ..common.warehouse import Queryable
 
 logger = logging.getLogger(__name__)
 
