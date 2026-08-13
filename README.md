@@ -66,18 +66,18 @@ Three tracks, three layers, and one database where two of them meet.
 
 ```mermaid
 flowchart LR
-    EXT["External sources<br/>APIs, open data"]
+    EXT["External sources"]
 
     subgraph de["Data Track"]
-        ING["Ingest<br/>raw records, unchanged"]
-        MODEL["Model and test<br/>clean, deduplicate, join"]
-        MART[("Published tables<br/>one per use case")]
+        ING["Ingest raw records"]
+        MODEL["Clean, deduplicate, join"]
+        MART[("Published tables")]
     end
 
     subgraph be["Backend Track"]
-        ANA[("analytics schema<br/>data writes, backend reads")]
+        ANA[("analytics schema")]
         API["REST API"]
-        APP[("app schema<br/>accounts, saved items,<br/>records admins create")]
+        APP[("app schema")]
     end
 
     subgraph fe["Frontend Track"]
@@ -99,6 +99,10 @@ flowchart LR
     class ANA,APP,API b
     class UI f
 ```
+
+The application database holds two schemas. **`analytics`** is written by the
+data pipeline and read by the backend. **`app`** holds accounts, saved items and
+anything the application's own admins create, and only the backend writes it.
 
 Three rules are worth reading off that picture, because they are the ones teams
 get wrong:

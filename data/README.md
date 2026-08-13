@@ -14,30 +14,32 @@ exist.
 
 ```mermaid
 flowchart LR
-    API["Source API"] --> ACA["Container Apps job<br/>fetch and validate"]
-    ACA --> VOL[("Landing zone<br/>raw JSON, one file per run")]
+    API["Source API"] --> ACA["ACA job: ingest"]
+    ACA --> VOL[("Landing zone")]
 
-    subgraph dbx["Databricks: your catalog, nobody else reads it"]
-        STG["staging<br/>typed, one row per source record"]
-        INT["intermediate<br/>reshaped, still private"]
-        MART["marts<br/>the shape you publish"]
+    subgraph dbx["Databricks: your catalog"]
+        STG["staging"] --> INT["intermediate"] --> MART["marts"]
+        MART -.-> PYM["dbt Python model"]
+        PYM -.-> MART
     end
 
-    VOL --> STG --> INT --> MART
+    VOL --> STG
+    MART --> EN["ACA job: enrich"] --> SYNC["sync: write, then swap"]
+    SYNC --> PG[("analytics schema")] --> BE["backend/"]
+    APP[("app schema")] -.->|"read only, optional"| STG
 
-    MART --> EN["Container Apps job<br/>enrichment, optional"]
-    MART --> SYNC["sync task<br/>write, then swap"]
-    EN --> SYNC
-    SYNC --> PG[("Backend Postgres<br/>analytics schema")]
-    PG --> BE["backend/"]
-    APP[("Backend Postgres<br/>app schema")] -.->|"read only, optional"| STG
-
-    AF["Airflow<br/>daily"] -.-> ACA
+    AF["Airflow, daily"] -.-> ACA
     AF -.-> STG
     AF -.-> EN
     AF -.-> SYNC
     AF -.->|"on failure"| SL["Slack"]
+
+    classDef opt stroke-dasharray:4 3
+    class PYM opt
 ```
+
+Solid nodes are the four tasks the DAG runs every day. The dashed one is
+optional and ships switched off.
 
 The Databricks box is the part of your work nobody outside the data track ever
 sees. Staging, intermediate models and every model you build while figuring the
@@ -48,6 +50,21 @@ Every team runs this shape: ingestion in a container, raw files in your team's
 landing zone, dbt building and testing models in your team's catalog, a second
 container adding what SQL cannot express, and Airflow publishing the finished
 mart into the database the backend reads.
+
+Work that is not SQL has two possible homes, and they are a real choice rather
+than two names for the same thing:
+
+- **The enrichment container**, which is the shape shipped here and the third
+  task in the DAG. Use it when the work needs a library, a runtime or a call to
+  another service. `src/enrichment/enrich.py`.
+- **A dbt Python model** on Databricks serverless, which is the dashed box.
+  It is a node in the dbt graph, so `ref()`, build ordering and dbt tests all
+  apply to it, and there is no cluster to start or stop. It costs about a minute
+  per run to submit the job, which is why ingestion stays a container.
+  `dbt/models/marts/fct_title_discipline.py` is a working example that
+  classifies job titles with an LLM, shipped with `enabled: false`. Turn it on
+  in `dbt_project.yml` after reading [`optional/README.md`](optional/README.md),
+  which covers the API key and the daily request limit.
 
 Both container jobs run the same image. They differ only in the command, which
 is why there is one thing to build and one tag to keep track of.
@@ -82,6 +99,7 @@ the diagram above. `common/` is what more than one stage needs.
 | `src/common/warehouse.py` | Runs SQL against your warehouse over HTTP | No |
 | `src/common/aca.py` | Starts a container job and waits for it | No |
 | `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
+| `dbt/models/marts/fct_title_discipline.py` | Optional: the same classification as a dbt Python model, shipped disabled | Only if you turn it on |
 | `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
 | `tests/` | Unit tests, in folders mirroring `src/`. No credentials, under a second | Add as you build |
 | `airflow/dags/pipeline_dag.py` | The four tasks, wired in order | Only to add a step |
@@ -521,10 +539,9 @@ published, under the name `analytics.fct_postings` in the backend's database.
 Adding a column is safe. Renaming or removing one breaks them, so agree it
 first and change both sides at once.
 
-Every column is documented in `dbt/models/marts/_fct_postings.yml`. Hand that
-file to the backend trainees on day one and they can write endpoints before
-your pipeline is finished. See `docs/mart_contract.md` for how to work on it
-together.
+Every column is documented in `dbt/models/marts/_fct_postings.yml`. That file is
+the contract: hand it to the backend trainees on day one and they can write
+endpoints against columns that have no data in them yet.
 
 ## Alerting
 
