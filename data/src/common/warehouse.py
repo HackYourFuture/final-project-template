@@ -201,4 +201,27 @@ class Warehouse:
 
         schema = body.get("manifest", {}).get("schema", {}).get("columns", [])
         columns = [(c.get("name", ""), c.get("type_text", "STRING")) for c in schema]
-        return columns, body.get("result", {}).get("data_array") or []
+
+        # A large result arrives in chunks, and the first one is all this
+        # response holds. Measured against a real warehouse: 50,000 rows came
+        # back as 25,000 with the statement reporting SUCCEEDED, and the
+        # publish step then swapped half a table in front of the backend on a
+        # run that looked green. Follow the links until they run out.
+        result = body.get("result", {})
+        rows = list(result.get("data_array") or [])
+        link = result.get("next_chunk_internal_link")
+        while link:
+            chunk = self._call("GET", link)
+            rows.extend(chunk.get("data_array") or [])
+            link = chunk.get("next_chunk_internal_link")
+
+        # Belt and braces: the manifest says how many rows there should be, so
+        # any future change to the chunk protocol fails loudly here instead of
+        # publishing a short table quietly.
+        expected = body.get("manifest", {}).get("total_row_count")
+        if expected is not None and len(rows) != expected:
+            raise WarehouseError(
+                f"read {len(rows)} rows but the warehouse reported {expected}. "
+                f"Refusing to continue with a partial result."
+            )
+        return columns, rows

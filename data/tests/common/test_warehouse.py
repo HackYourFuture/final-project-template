@@ -50,6 +50,46 @@ def test_run_waits_for_a_pending_statement():
     assert warehouse.run("select count(*) from t") == [["7"]]
 
 
+def test_query_follows_every_chunk_of_a_large_result():
+    """Measured against a real warehouse: 50,000 rows arrived as 25,000 in the
+    first chunk with the statement reporting SUCCEEDED, and the publish step
+    then swapped half a table in front of the backend on a green run."""
+    first = {
+        "status": {"state": "SUCCEEDED"},
+        "manifest": {
+            "schema": {"columns": [{"name": "n", "type_text": "BIGINT"}]},
+            "total_row_count": 3,
+        },
+        "result": {
+            "data_array": [["1"]],
+            "next_chunk_internal_link": "/api/2.0/sql/statements/s1/result/chunks/1",
+        },
+    }
+    second = {
+        "data_array": [["2"]],
+        "next_chunk_internal_link": "/api/2.0/sql/statements/s1/result/chunks/2",
+    }
+    third = {"data_array": [["3"]]}
+    warehouse, _ = build([first, second, third])
+    assert warehouse.run("select n from t") == [["1"], ["2"], ["3"]]
+
+
+def test_query_refuses_a_result_short_of_the_row_count_the_warehouse_reported():
+    """If the chunk protocol ever changes, fail loudly rather than publish a
+    short table quietly."""
+    body = {
+        "status": {"state": "SUCCEEDED"},
+        "manifest": {
+            "schema": {"columns": [{"name": "n", "type_text": "BIGINT"}]},
+            "total_row_count": 9,
+        },
+        "result": {"data_array": [["1"]]},
+    }
+    warehouse, _ = build([body])
+    with pytest.raises(WarehouseError, match="partial"):
+        warehouse.run("select n from t")
+
+
 def test_a_failed_statement_raises():
     warehouse, _ = build([{"status": {"state": "FAILED", "error": {"message": "boom"}}}])
     with pytest.raises(WarehouseError, match="FAILED"):

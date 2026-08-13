@@ -26,32 +26,45 @@ credentials.
 > where domain knowledge lives.
 """
 
+import re
+
 # A posting gets the first discipline whose keywords it matches, so the order of
 # this dictionary is meaning, not decoration. Keep the list small and the
 # keywords mutually exclusive: two disciplines matching the same title makes the
 # result depend on dictionary order, which is not a rule anyone can explain.
 DISCIPLINES: dict[str, tuple[str, ...]] = {
-    "data": ("data engineer", "data scientist", "analytics", "machine learning", "bi "),
-    # Before frontend, deliberately. "React Native Developer" contains `react`,
-    # so with frontend first every React Native role was labelled frontend and
-    # the `react native` keyword below could never match anything.
-    "mobile": ("android", " ios ", "flutter", "react native", "mobile"),
-    "backend": ("backend", "back-end", "java", "python developer", "golang", "api"),
-    "frontend": ("frontend", "front-end", "react", "vue", "javascript", "ui "),
+    "data": ("data engineer", "data scientist", "analytics", "machine learning", "bi"),
+    # Before frontend, deliberately. "React Native Developer" matches `react`
+    # too, so with frontend first every React Native role was labelled frontend
+    # and the `react native` keyword below could never match anything.
+    "mobile": ("android", "ios", "flutter", "react native", "mobile"),
+    "backend": ("backend", "back-end", "java", "python developer", "golang", "api", "apis"),
+    "frontend": ("frontend", "front-end", "react", "vue", "javascript", "ui"),
     "devops": ("devops", "sre", "platform engineer", "kubernetes", "cloud engineer"),
 }
 UNCLASSIFIED = "other"
+
+# Whole words only, which is the whole game here. Plain substring matching
+# looks fine until real titles arrive: `api` matched "Therapist" and "Capital
+# Markets Analyst", `java` swallowed "JavaScript Developer", `ios` matched
+# "BIOS", and `mobile` matched "Automobile". A word boundary handles every one
+# of those, and still matches punctuation-joined titles like "React.js
+# Developer" that space padding would miss.
+_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    discipline: [re.compile(rf"\b{re.escape(keyword)}\b") for keyword in keywords]
+    for discipline, keywords in DISCIPLINES.items()
+}
 
 
 def classify(title: str) -> str:
     """Decide which discipline a job title belongs to.
 
-    Padded with spaces on both sides so a keyword like `bi ` matches the word
-    and not the middle of "ambitious".
+    The first discipline with a matching keyword wins, so the order of
+    DISCIPLINES is meaning rather than decoration.
     """
-    haystack = f" {title.lower().strip()} "
-    for discipline, keywords in DISCIPLINES.items():
-        if any(keyword in haystack for keyword in keywords):
+    haystack = title.lower().strip()
+    for discipline, patterns in _PATTERNS.items():
+        if any(pattern.search(haystack) for pattern in patterns):
             return discipline
     return UNCLASSIFIED
 

@@ -156,6 +156,12 @@ def start_job(job_name: str) -> str:
     start_date=datetime(2026, 1, 1, tzinfo=UTC),
     schedule="0 6 * * *",
     catchup=False,
+    # One run at a time. Airflow allows sixteen by default, and two runs would
+    # build into the same dbt schema and both publish through the same
+    # `fct_postings__staging` table, so whichever finished second would win and
+    # the loser's rows would vanish. Triggering by hand while the scheduled run
+    # is going is the normal way to meet this.
+    max_active_runs=1,
     default_args=DEFAULT_ARGS,
     tags=["final-project"],
 )
@@ -201,7 +207,10 @@ def final_project_pipeline():
         # password are named when the database is created. `scripts/db-setup.py`
         # makes `analytics_user`; the defaults below are what the rehearsal
         # database uses until the real one exists.
-        user = setting("BACKEND_PG_USER", "analytics_writer")
+        # `scripts/db-setup.py` creates this role, so the default matches the
+        # database you get by following the README. The rehearsal databases use
+        # `analytics_writer` instead: set the Variable there.
+        user = setting("BACKEND_PG_USER", "analytics_user")
         # Two steps rather than one nested call, and deliberately. Written as
         # one, the default secret name interpolates the team eagerly, so a
         # local run with the password already in .env still failed with "TEAM

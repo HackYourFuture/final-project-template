@@ -49,10 +49,30 @@ def test_ios_does_not_match_the_middle_of_a_word():
     assert classify("iOS Engineer") == "mobile"
 
 
-def test_a_keyword_ending_in_a_space_matches_a_whole_word():
-    """`bi ` is in the data keywords. Without the padding in `classify` it would
-    also match "ambitious", and every ambitious frontend role would be data."""
-    assert classify("Ambitious Frontend Developer") == "frontend"
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        # Every one of these was wrong before the rules matched whole words.
+        ("JavaScript Developer", "frontend"),
+        ("Senior JavaScript Engineer", "frontend"),
+        ("Capital Markets Analyst", UNCLASSIFIED),
+        ("Rapid Prototyping Lead", UNCLASSIFIED),
+        ("Therapist", UNCLASSIFIED),
+        ("Automobile Designer", UNCLASSIFIED),
+        ("Ambitious Frontend Developer", "frontend"),
+    ],
+)
+def test_keywords_match_whole_words_only(title, expected):
+    """Substring matching put `api` inside "Therapist" and `java` inside
+    "JavaScript". A word boundary is what stops a keyword hiding in the middle
+    of an unrelated word."""
+    assert classify(title) == expected
+
+
+def test_punctuation_still_counts_as_a_boundary():
+    """ "React.js" has no space after `react`, so space padding would miss it
+    where a word boundary does not."""
+    assert classify("React.js Developer") == "frontend"
 
 
 def test_every_discipline_is_reachable():
