@@ -316,7 +316,8 @@ and they are the first thing to fill in:
 | `LANDING_PREFIX` | `your-name` | `raw` |
 | `LANDING_PATH` | `/Volumes/<catalog>/landing/dev/your-name/postings` | `.../landing/raw/postings` |
 | `DBT_SCHEMA` | `dev_yourname` | `analytics` |
-| `BACKEND_PG_HOST` | your own Postgres in Docker | the backend's database |
+| `BACKEND_PG_PUBLISH_SCHEMA` | `analytics_dev` | `analytics` |
+| `BACKEND_PG_USER` | `analytics_dev_user` | `analytics_user` |
 
 This is not a naming convention you have to remember. It is what your account
 is allowed to do. You can write the `dev` container and only read `landing`.
@@ -359,8 +360,21 @@ docker exec -it $(docker ps -qf name=scheduler) \
 ```
 
 It reads `<catalog>.dev_yourname.fct_postings_enriched` and writes
-`analytics.fct_postings` in your own Postgres, the one `scripts/db-setup.py`
-created. `dbt_build` runs the same way. The `ingest` task does not: it starts a
+`analytics_dev.fct_postings` in the real backend database. Same table name as
+production, one schema across, so promoting it later changes nothing the
+backend selects. `dbt_build` runs the same way.
+
+You share `analytics_dev` with your teammates, so the last publish wins. The
+table carries a comment saying where the rows came from, which is how you tell
+whose run you are looking at:
+
+```
+\d+ analytics_dev.fct_postings     -->  from team_a.dev_alex at 2026-08-13T11:21Z
+```
+
+Point `BACKEND_PG_PUBLISH_SCHEMA` at `analytics` by mistake and the run stops
+with a permission error. `analytics_dev_user` cannot write production, which is
+the point of it being a separate role. The `ingest` task does not: it starts a
 Container Apps job, which needs the VM's identity, so run that one as the
 script above.
 
