@@ -2,9 +2,15 @@
 """Set up the Postgres database, its schemas, roles and permissions.
 
 Creates the database, the 'app', 'analytics' and 'analytics_dev' schemas, and a
-login role per owner: 'app_user' owns 'app', 'analytics_user' owns both analytics
-schemas. Each role has full access to the schemas it owns and read-only access to
-the others, for both existing and future objects.
+login role per owner: 'app_user' owns 'app', 'analytics_user' owns 'analytics',
+'analytics_dev_user' owns 'analytics_dev'. Each role has full access to the
+schemas it owns and read-only access to the others, for both existing and future
+objects.
+
+The third role is the reason there are two analytics schemas. Trainees write
+'analytics_dev' by hand while they build a mart; the scheduled pipeline writes
+'analytics', which the backend reads. Giving both schemas to one role would mean
+handing a trainee the credential that owns production, so they get their own.
 
 The script is idempotent: re-running it never changes existing state, so a
 failed run can simply be repeated. Existing roles keep their current password
@@ -47,9 +53,10 @@ ANALYTICS_SCHEMA = "analytics"
 ANALYTICS_DEV_SCHEMA = "analytics_dev"
 APP_ROLE = "app_user"
 ANALYTICS_ROLE = "analytics_user"
+ANALYTICS_DEV_ROLE = "analytics_dev_user"
 
 
-ROLES = (APP_ROLE, ANALYTICS_ROLE)
+ROLES = (APP_ROLE, ANALYTICS_ROLE, ANALYTICS_DEV_ROLE)
 
 # Every schema, and the role that owns it. A role gets full access to the schemas
 # it owns and read-only access to all the others, so adding a schema here is the
@@ -57,7 +64,7 @@ ROLES = (APP_ROLE, ANALYTICS_ROLE)
 SCHEMA_OWNERS = {
     APP_SCHEMA: APP_ROLE,
     ANALYTICS_SCHEMA: ANALYTICS_ROLE,
-    ANALYTICS_DEV_SCHEMA: ANALYTICS_ROLE,
+    ANALYTICS_DEV_SCHEMA: ANALYTICS_DEV_ROLE,
 }
 
 
