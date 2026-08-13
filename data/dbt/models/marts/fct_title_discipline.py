@@ -1,11 +1,16 @@
-# OPTIONAL. Not part of the required pipeline. It does the same job as
-# src/enrich.py with an LLM, and needs an API key before it runs at all.
-# Copy it into dbt/models/marts/ to use it. See data/optional/README.md.
+# OPTIONAL, and disabled. `enabled: false` in dbt_project.yml keeps it out of
+# every build until your team turns it on, because it calls an LLM and needs an
+# API key first. It does the same job as src/enrich.py.
+# See ../../../optional/README.md.
 """Classify job titles with an LLM, as a dbt model rather than a container.
 
-Copy this file into `dbt/models/marts/` and it becomes a normal node in the
-graph: `dbt build` runs it in order, `ref()` works, and you can test its
-output. See `optional/README.md` for the two settings it needs.
+Enable it in `dbt_project.yml` and it becomes a normal node in the graph:
+`dbt build` runs it in order, `ref()` works, and you can test its output. See
+`optional/README.md` for the two settings it needs.
+
+Its tests are in `tests/test_fct_title_discipline.py`, not next to this file:
+dbt reads every `.py` under `models/` as a model and refuses one that defines
+no `model()`, so a test file here stops the whole project from parsing.
 
 It runs on **serverless compute**, so there is no cluster to create, start or
 forget to stop. dbt submits the model as a job, waits, and writes the result.

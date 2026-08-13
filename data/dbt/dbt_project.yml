@@ -35,3 +35,12 @@ models:
       +materialized: view
     marts:
       +materialized: table
+      # Optional, and off. It calls an LLM, so it needs an API key in a secret
+      # scope before it can run at all, and a `dbt build` that fails for a team
+      # who never asked for it would be worse than useless. Set `enabled: true`
+      # and your own `secret_scope` when your team wants it. Disabled models are
+      # parsed and then ignored: it costs nothing to leave this here.
+      # See ../optional/README.md.
+      fct_title_discipline:
+        +enabled: false
+        +secret_scope: CHANGE_ME

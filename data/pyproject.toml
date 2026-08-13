@@ -39,7 +39,11 @@ testpaths = ["tests"]
 # Puts this folder on the import path, so tests import `src` the same way the
 # container does. Without it `from src.ingest import ...` only works when you
 # happen to run pytest from exactly the right directory.
-pythonpath = ["."]
+# "." so tests import `src` the way the container does. The dbt marts folder so
+# tests can import a Python model: dbt models are not a package, and a test file
+# cannot live next to them, because dbt reads every .py under models/ as a model
+# and refuses one that defines no model().
+pythonpath = [".", "dbt/models/marts"]
 
 [tool.black]
 # Matches the ruff line length below. Black owns layout, ruff owns everything
@@ -59,3 +63,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+# ty needs telling where a dbt python model lives; pytest learns it from
+# pythonpath above.
+[tool.ty.environment]
+extra-paths = ["dbt/models/marts"]

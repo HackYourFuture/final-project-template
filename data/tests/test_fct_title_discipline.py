@@ -1,14 +1,24 @@
-# OPTIONAL. Tests for an optional module. No API key and no network needed,
-# so they run as they are. See data/optional/README.md.
 """The parts of the LLM model worth testing: batching, parsing, and refusal.
+
+Tests for `dbt/models/marts/fct_title_discipline.py`, which is disabled by
+default. They run anyway, and should: a test that only runs once someone turns
+the model on is a test that tells you it broke too late.
 
 No key and no network. `classify` takes the function that talks to the model,
 so these tests hand it one that answers from a script. That is the whole
 reason it is written that way.
 
-Copy this next to the model file and run `uv run pytest optional/python_model`.
+The import works because pyproject puts `dbt/models/marts` on the path. dbt
+models are not a package, and this file cannot sit beside the model: dbt reads
+every `.py` under `models/` as a model.
+
+dbt's own unit tests are no help here. Point one at a Python model and dbt
+hands the Python source to the SQL engine, which answers with
+`[PARSE_SYNTAX_ERROR] Syntax error at or near '#'`. Unit tests are for SQL
+models; pytest is for these.
 """
 
+import email.message
 import io
 import json
 import urllib.error
@@ -98,7 +108,11 @@ def test_being_rate_limited_says_so_in_words(monkeypatch):
     upstream = b'{"error":{"message":"gpt-oss-20b:free is temporarily rate-limited upstream"}}'
 
     def refuse(*_args, **_kwargs):
-        raise urllib.error.HTTPError(url="", code=429, msg="", hdrs=None, fp=io.BytesIO(upstream))
+        # A real Message rather than None: HTTPError accepts None at runtime,
+        # but the type checker CI runs does not, and this reads no worse.
+        raise urllib.error.HTTPError(
+            url="", code=429, msg="", hdrs=email.message.Message(), fp=io.BytesIO(upstream)
+        )
 
     monkeypatch.setattr("urllib.request.urlopen", refuse)
     with pytest.raises(ClassificationError) as raised:

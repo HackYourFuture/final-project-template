@@ -4,11 +4,16 @@ Nothing in this folder is required. Week 15 asks for a working pipeline, not for
 every tool you have seen. Add a module only when your team has the required
 pipeline running and wants to go further.
 
-| Folder | Adds | Data Track week |
+| Where | Adds | Data Track week |
 |---|---|---|
-| `python_model/` | Classifies job titles with an LLM, as a dbt model | 13 |
+| `../dbt/models/marts/fct_title_discipline.py` | Classifies job titles with an LLM, as a dbt model. Already in the project, disabled | 13 |
 | `streamlit/` | Freshness and row counts for the published mart | 11 |
 | `dbt_results/` | Records every dbt run in `<catalog>.ops.dbt_test_runs` | 10 |
+
+The LLM model is the odd one out: it sits in the dbt project rather than here,
+because a dbt model only works from inside `models/`. It is switched off with
+`enabled: false`, so it is parsed and ignored until you turn it on. Its tests
+run with everything else, in `tests/test_fct_title_discipline.py`.
 
 The Streamlit page reads the backend's database only, so it reports the end of
 the pipeline and nothing before it. `dbt_results` puts test outcomes in the
@@ -130,11 +135,8 @@ remember not to commit.
 
 ### Switching it on
 
-**1. Copy the model into the project** and tell it which scope to read:
-
-```bash
-cp optional/python_model/fct_title_discipline.py dbt/models/marts/
-```
+**1. Turn the model on** and tell it which scope to read. The file is already
+in `dbt/models/marts/`; two lines in `dbt_project.yml` decide whether it runs:
 
 ```yaml
 # dbt_project.yml
@@ -142,6 +144,8 @@ models:
   final_project:
     marts:
       fct_title_discipline:
+        # Was false. Nothing built it while it was.
+        +enabled: true
         +secret_scope: team_<x>
         # Optional. Leave it out and the model uses the free one it ships with.
         +llm_model: openai/gpt-oss-20b:free
@@ -151,7 +155,7 @@ models:
 file arrived intact before you spend a request:
 
 ```bash
-uv run pytest optional/python_model
+uv run pytest tests/test_fct_title_discipline.py
 ```
 
 **3. Build it once, by hand,** and read what it wrote:
