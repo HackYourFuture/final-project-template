@@ -1,9 +1,11 @@
 """Daily orchestration for the final project pipeline.
 
-    ingest -> dbt_build -> enrich -> publish_to_backend
+    ingest -> dbt_build -> publish_to_backend
 
 Each step is separate so that when dbt fails you re-run dbt, not the fetch, and
-so the publish cannot run on a mart that failed its own tests.
+so the publish cannot run on a mart that failed its own tests. Enrichment is
+not a task here: it is a dbt Python model, so `dbt_build` already runs it in
+the right order. See data/dbt/models/marts/fct_postings_enriched.py.
 
 Settings come from Airflow Variables (Admin -> Variables), read when the task
 runs. Secrets never do: each is fetched from Key Vault inside the task that
@@ -150,7 +152,7 @@ def start_job(job_name: str) -> str:
 
 @dag(
     dag_id="final_project_pipeline",
-    description="Ingest to the lakehouse, build dbt models, enrich, publish to the backend",
+    description="Ingest to the lakehouse, build and enrich dbt models, publish to the backend",
     start_date=datetime(2026, 1, 1, tzinfo=UTC),
     schedule="0 6 * * *",
     catchup=False,
@@ -184,11 +186,6 @@ def final_project_pipeline():
 
         summary = [line for line in result.stdout.splitlines() if "PASS=" in line]
         return summary[-1].strip() if summary else "dbt build finished"
-
-    @task
-    def enrich() -> str:
-        """Add the column dbt cannot: see data/src/enrichment/enrich.py for why."""
-        return start_job(setting("ACA_ENRICH_JOB"))
 
     @task
     def publish_to_backend() -> int:
@@ -231,7 +228,7 @@ def final_project_pipeline():
             rows,
         )
 
-    ingest() >> dbt_build() >> enrich() >> publish_to_backend()
+    ingest() >> dbt_build() >> publish_to_backend()
 
 
 final_project_pipeline()

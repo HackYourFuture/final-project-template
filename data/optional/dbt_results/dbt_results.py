@@ -24,9 +24,19 @@ import logging
 from pathlib import Path
 
 from src.common.warehouse import Queryable
-from src.enrichment.enrich import sql_literal
 
 logger = logging.getLogger(__name__)
+
+
+def sql_literal(value: str) -> str:
+    """Quote a string for a SQL statement.
+
+    Databricks treats the single quote and the backslash as special inside a
+    literal, so both are doubled. A dbt node named with an apostrophe would
+    otherwise end the statement in the middle of a word.
+    """
+    return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'"
+
 
 TABLE = "dbt_test_runs"
 SCHEMA = "ops"

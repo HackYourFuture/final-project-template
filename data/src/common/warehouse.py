@@ -1,6 +1,7 @@
 """Run SQL against the Databricks SQL warehouse over HTTP.
 
-Used by the steps dbt cannot express: the enrichment job and the publish step.
+Used by the steps that run outside dbt: the publish step, and the optional
+health page.
 See the README, "Talking to the warehouse", for why the token comes from Entra
 rather than from the workspace.
 """

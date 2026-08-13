@@ -1,6 +1,6 @@
 """Publish a mart from Databricks into the backend's Postgres database.
 
-Airflow runs this after dbt and the enrichment succeed. See the README, "The
+Airflow runs this after dbt succeeds. See the README, "The
 two schemas" and "The write-then-swap", for why it works the way it does.
 """
 

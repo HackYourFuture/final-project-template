@@ -18,17 +18,17 @@ flowchart LR
 
     subgraph az["Azure"]
         ING["ACA job: ingestion container, image tagged by SHA"]
-        ENR["ACA job: enrichment container"]
 
         subgraph dbx["Databricks (Unity Catalog)"]
             LAND[("landing zone, ADLS: /Volumes/catalog/landing/raw")]
             WH["SQL warehouse, 2X-Small"]
             MODELS["staging, then marts, plus dbt tests"]
-            PYM["dbt Python model on serverless"]
+            ENRM["fct_postings_enriched: dbt Python model on serverless"]
+            PYM["LLM classifier: dbt Python model"]
             OPSTBL[("ops.dbt_test_runs")]
         end
 
-        AF["Airflow, one VM per team: ingest, dbt build, enrich, publish"]
+        AF["Airflow, one VM per team: ingest, dbt build, publish"]
     end
 
     subgraph be["Backend track"]
@@ -38,15 +38,15 @@ flowchart LR
     SRC -->|"fetch"| ING
     ING -->|"raw JSON"| LAND
     LAND --> WH --> MODELS
+    MODELS --> ENRM
     MODELS -.-> PYM
     WH -.-> OPSTBL
-    MODELS --> ENR --> PUB["publish: write, then swap"]
+    ENRM --> PUB["publish: write, then swap"]
     PUB -->|"outbound sync"| PG
     PG -.->|"inbound sync"| MODELS
 
     AF -.->|"trigger and wait"| ING
     AF -.->|"dbt build"| WH
-    AF -.->|"trigger and wait"| ENR
     AF -.-> PUB
 
     classDef opt stroke-dasharray:5 4
@@ -109,27 +109,22 @@ anywhere, Key Vault holds the one secret your Airflow VM may read, and the
 Slack alert is already wired to every task.
 
 Every team runs this shape: ingestion in a container, raw files in your team's
-landing zone, dbt building and testing models in your team's catalog, a second
-container adding what SQL cannot express, and Airflow publishing the finished
-mart into the database the backend reads.
+landing zone, dbt building and testing models in your team's catalog, and
+Airflow publishing the finished mart into the database the backend reads.
 
-Work that is not SQL has two possible homes, and they are a real choice rather
-than two names for the same thing:
+**Enrichment is a dbt model, not a separate job.** The work that SQL expresses
+badly, here deciding which discipline a job title belongs to, lives in
+`dbt/models/marts/fct_postings_enriched.py`, a **dbt Python model** running on
+Databricks serverless. It is a node in the graph like any `.sql` file, so
+`dbt build` runs it in order after `fct_postings`, `ref()` works, and its
+output is tested in `_fct_postings_enriched.yml`. There is no cluster to start
+and no fourth task to trigger and wait for.
 
-- **The enrichment container**, which is the shape shipped here and the third
-  task in the DAG. Use it when the work needs a library, a runtime or a call to
-  another service. `src/enrichment/enrich.py`.
-- **A dbt Python model** on Databricks serverless, which is the dashed box.
-  It is a node in the dbt graph, so `ref()`, build ordering and dbt tests all
-  apply to it, and there is no cluster to start or stop. It costs about a minute
-  per run to submit the job, which is why ingestion stays a container.
-  `dbt/models/marts/fct_title_discipline.py` is a working example that
-  classifies job titles with an LLM, shipped with `enabled: false`. Turn it on
-  in `dbt_project.yml` after reading [`optional/README.md`](optional/README.md),
-  which covers the API key and the daily request limit.
-
-Both container jobs run the same image. They differ only in the command, which
-is why there is one thing to build and one tag to keep track of.
+There is a second, optional Python model beside it. `fct_title_discipline.py`
+does the same classification with an LLM instead of a dictionary, and ships
+with `enabled: false` because it needs an API key first. See
+[`optional/README.md`](optional/README.md) for the key and the daily request
+limit.
 
 Your raw files live in your team's own storage account, in a container called
 `landing`. That same container is registered in Unity Catalog as a volume, so
@@ -147,8 +142,8 @@ two Postgres roles rather than an agreement.
 Everything below works. The "change this" column says what a team normally
 edits, not what is missing.
 
-The Python is grouped by pipeline stage, so the folders match the four boxes in
-the diagram above. `common/` is what more than one stage needs.
+The Python is grouped by pipeline stage, so the folders match the boxes in the
+diagram above. `common/` is what more than one stage needs.
 
 | Path | What it does | Change this? |
 |---|---|---|
@@ -156,17 +151,17 @@ the diagram above. `common/` is what more than one stage needs.
 | `src/ingestion/ingest.py` | Calls the API, validates, counts rejects | The parsing, if your source is nested |
 | `src/ingestion/storage.py` | Lands raw JSON in your team's landing zone | Rarely |
 | `src/ingestion/pipeline.py` | The ingestion job's entrypoint: settings, fetch, validate, land | Rarely |
-| `src/enrichment/enrich.py` | The enrichment job: classifies each posting in Python | Yes: this is your domain logic |
 | `src/publishing/sync.py` | Publishes the mart into the backend's database, atomically | Rarely |
 | `src/common/warehouse.py` | Runs SQL against your warehouse over HTTP | No |
 | `src/common/aca.py` | Starts a container job and waits for it | No |
 | `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
-| `dbt/models/marts/fct_title_discipline.py` | Optional: the same classification as a dbt Python model, shipped disabled | Only if you turn it on |
+| `dbt/models/marts/fct_postings_enriched.py` | The enrichment model: classifies each posting in Python, on serverless | Yes: this is your domain logic |
+| `dbt/models/marts/fct_title_discipline.py` | Optional: the same classification with an LLM, shipped disabled | Only if you turn it on |
 | `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
 | `tests/` | Unit tests, in folders mirroring `src/`. No credentials, under a second | Add as you build |
-| `airflow/dags/pipeline_dag.py` | The four tasks, wired in order | Only to add a step |
+| `airflow/dags/pipeline_dag.py` | The three tasks, wired in order | Only to add a step |
 | `airflow/dags/alerts.py` | Posts to Slack when any task fails | No |
-| `Dockerfile` | The one image both container jobs run | Rarely |
+| `Dockerfile` | The image the ingestion job runs | Rarely |
 | `optional/` | A health dashboard and a dbt-results recorder. Neither required | As you like |
 
 ## Setup
@@ -294,14 +289,7 @@ environment, and `uv run` does not pick up `.env` on its own.
 When staging reads your own file, you have an end to end path, and everything
 after that is shaping.
 
-**9. Run the enrichment.** It reads the mart dbt just built, classifies every
-posting, and writes `fct_postings_enriched` next to it.
-
-```bash
-uv run python -m src.enrichment.enrich
-```
-
-**10. Run the tests.** They need no credentials and no network, so they are the
+**9. Run the tests.** They need no credentials and no network, so they are the
 one thing you can run before anything else works.
 
 ```bash
@@ -340,8 +328,8 @@ The loop, start to finish:
 ```bash
 uv run pytest                              # no credentials needed at all
 uv run python -m src.ingestion.pipeline              # lands in dev/your-name
-cd dbt && uv run --env-file ../.env dbt build && cd ..   # builds dev_yourname
-uv run python -m src.enrichment.enrich                # adds discipline, same schema
+cd dbt && uv run --env-file ../.env dbt build && cd ..   # builds dev_yourname,
+                                           # including the enrichment model
 ```
 
 `dbt build` needs no `--vars`: it reads `LANDING_PATH` from the same `.env`
@@ -370,9 +358,9 @@ docker exec -it $(docker ps -qf name=scheduler) \
 
 It reads `<catalog>.dev_yourname.fct_postings_enriched` and writes
 `analytics.fct_postings` in your own Postgres, the one `scripts/db-setup.py`
-created. `dbt_build` runs the same way. The
-`ingest` and `enrich` tasks do not: they start Container Apps jobs, which
-needs the VM's identity, so run those two as the scripts above.
+created. `dbt_build` runs the same way. The `ingest` task does not: it starts a
+Container Apps job, which needs the VM's identity, so run that one as the
+script above.
 
 > The same DAG file runs in both places. It reads a secret from your `.env`
 > when there is one and from Key Vault when there is not, so nothing has to be
@@ -425,7 +413,7 @@ your team's source is five edits:
 2. `src/ingestion/models.py`: change the model to match your records.
 3. `dbt/models/`: rename the models and columns to your domain.
 4. `dbt/models/marts/_fct_postings.yml`: rewrite the contract.
-5. `src/enrichment/enrich.py`: replace the classifier with whatever your product needs.
+5. `dbt/models/marts/fct_postings_enriched.py`: replace the classifier with whatever your product needs.
 
 Do this in your first two days. Everything after that builds on the shape you
 choose here.
@@ -479,24 +467,35 @@ workspace. The workspace's own `/oidc/v1/token` endpoint returns 401 for
 principals created
 this way, and the error does not hint that you are knocking on the wrong door.
 
-## Why there is a second container
+## Where work that is not SQL goes
 
-dbt already runs SQL against the warehouse, so anything expressible as SQL
-belongs in a dbt model, where it is tested, documented and rebuilt with
-everything else. The enrichment job exists for the work that is not SQL.
+Anything expressible as SQL belongs in a `.sql` model, where it is tested,
+documented and rebuilt with everything else. For the rest there is the Python
+model.
 
-Here it reads each job title and decides which discipline the posting belongs
-to. As SQL that is a hundred-line `CASE` nobody dares change; as Python it is a
-dictionary with unit tests, and the day you replace it with a real model or a
-call to another service, only `src/enrichment/enrich.py` changes.
+`fct_postings_enriched.py` reads each job title and decides which discipline the
+posting belongs to. As SQL that is a hundred-line `CASE` nobody dares change; as
+Python it is a dictionary with unit tests, and the day you replace it with a
+real model or a call to another service, only that one file changes.
 
-Keep that seam. Things that belong in the container rather than in dbt: calling
-another service, anything with a library behind it, and anything you want to
-test with `pytest` rather than with a dbt test.
+Ingestion stays a container rather than becoming a Python model too, and the
+reason is worth knowing. Submitting a serverless job costs about a minute of
+waiting per run, which is fine once a day at the end of the graph and painful
+when you are iterating on a fetch. A container also runs anywhere, including
+`docker compose run`, while a Python model only runs on Databricks.
+
+So the rule is: SQL in a `.sql` model, Python that works on your tables in a
+Python model, and a container when the work needs to reach outside the
+warehouse. If your enrichment grows into something that calls another service on
+every row, move it back into a container job and add a task for it.
 
 ## What runs in Airflow
 
-Four tasks, in order: `ingest`, `dbt_build`, `enrich`, `publish_to_backend`.
+Three tasks, in order: `ingest`, `dbt_build`, `publish_to_backend`. Enrichment
+is not among them: it is a dbt Python model, so `dbt_build` already runs it in
+the right order, and a step dbt owns cannot drift out of step with the models it
+depends on.
+
 The order is the point. Publishing a mart that failed its own tests is worse
 than publishing nothing, and the dependency is what stops it. Separate tasks
 also mean that when dbt fails you re-run dbt, not the fetch.
@@ -507,7 +506,7 @@ where the pipeline points is a change you make yourself, in one place your
 whole team can see, with no deploy:
 
 `TEAM`, `AZURE_SUBSCRIPTION`, `AZURE_RESOURCE_GROUP`, `ACA_INGEST_JOB`,
-`ACA_ENRICH_JOB`, `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`,
+`DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`,
 `DATABRICKS_CATALOG`, `DBT_SCHEMA`, `AZURE_TENANT_ID`, `BACKEND_PG_HOST`,
 `BACKEND_PG_DB`.
 
@@ -596,14 +595,17 @@ to succeed.
 
 ## The mart is a contract
 
-`fct_postings` is what dbt builds and `fct_postings_enriched` is what gets
-published, under the name `analytics.fct_postings` in the backend's database.
+`fct_postings` is what dbt builds first, `fct_postings_enriched` is what the
+Python model adds to it, and that is what gets published, under the name
+`analytics.fct_postings` in the backend's database.
 Adding a column is safe. Renaming or removing one breaks them, so agree it
 first and change both sides at once.
 
-Every column is documented in `dbt/models/marts/_fct_postings.yml`. That file is
-the contract: hand it to the backend trainees on day one and they can write
-endpoints against columns that have no data in them yet.
+Every column is documented in `dbt/models/marts/_fct_postings.yml` and
+`_fct_postings_enriched.yml`. Those files are the contract: hand them to the
+backend trainees on day one and they can write endpoints against columns that
+have no data in them yet. See [`docs/mart_contract.md`](docs/mart_contract.md)
+for how to work on it together.
 
 ## Alerting
 

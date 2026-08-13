@@ -37,13 +37,12 @@ services:
       - backend
 
   # The two data jobs. Neither is started by `docker compose up`: they run and
-  # exit, they are not services. They share one image and differ only in the
-  # command, which is exactly how the two Container Apps jobs are configured in
-  # Azure.
+  # exit, it is not a service. A container job you add later shares this
+  # image and differs only in the command, which is how Container Apps jobs are
+  # configured in Azure.
   #
-  #   docker compose build pipeline          build the image both jobs use
+  #   docker compose build pipeline          build the image the job uses
   #   docker compose run --rm pipeline       the ingestion job
-  #   docker compose run --rm enrich         the enrichment job
   #
   # Neither can authenticate to Azure from your laptop: a container has no
   # `az login` and no metadata service. Build here, run in Azure, and use
@@ -60,13 +59,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  enrich:
-    build: ./data
-    image: final-project-pipeline
-    profiles: [data]
-    env_file: ./data/.env
-    command: ["python", "-m", "src.enrichment.enrich"]
 
 volumes:
   db-data:

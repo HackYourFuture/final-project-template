@@ -61,9 +61,10 @@ working rather than something misconfigured.
 
 ## python_model
 
-`src/enrichment/enrich.py` classifies titles with a dictionary, in a container. This does
-the same job with an LLM, as a dbt model, and the interesting part is what
-changes and what does not.
+`dbt/models/marts/fct_postings_enriched.py` classifies titles with a dictionary.
+This does the same job with an LLM, and the interesting part is what changes and
+what does not: both are dbt Python models on serverless, so the difference is
+the rules, not the plumbing.
 
 It runs on **serverless compute**. There is no cluster to create, and none to
 forget to stop: dbt submits the model as a job, waits, and writes the result.
@@ -175,8 +176,8 @@ If everything came back `other`, the model did not answer in the shape the
 code expects. Check the run's log in Databricks rather than changing the
 prompt: the error names the cause.
 
-**4. Join it in a SQL model,** the same way `src/enrichment/enrich.py`'s output is joined
-today:
+**4. Join it in a SQL model,** the same way the dictionary model's output is
+joined today:
 
 ```sql
 select p.*, coalesce(d.discipline, 'other') as discipline

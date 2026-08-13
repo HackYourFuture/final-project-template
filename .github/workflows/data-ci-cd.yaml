@@ -2,7 +2,7 @@
 #
 # Lints and tests the pipeline on every pull request, and on a merge to main
 # builds the pipeline image and pushes it to your team's Azure Container
-# Registry. Both container jobs, ingestion and enrichment, run that one image.
+# Registry. The ingestion container job runs that image.
 #
 # Why this pushes to ACR while the backend and frontend push to GHCR: the
 # Container Apps job that runs this image pulls it with a managed identity that
@@ -161,10 +161,10 @@ jobs:
         run: |
           set -euo pipefail
           registry="${{ vars.ACR_NAME }}.azurecr.io"
-          # One image, both container jobs. The ingestion job runs it as it
-          # is; the enrichment job runs the same image with its command set to
-          # `python -m src.enrichment.enrich`. Two images would mean two builds, two tags
-          # to keep in step, and two places for a dependency to drift.
+          # One image. The ingestion job runs it as it is, and any container
+          # job you add later runs the same image with a different command:
+          # two images would mean two builds, two tags to keep in step, and two
+          # places for a dependency to drift.
           #
           # Two tags. Point your Container Apps jobs at the commit SHA, never at
           # latest: when a number looks wrong, the tag on the job that wrote it
@@ -176,10 +176,8 @@ jobs:
           docker push --all-tags "$registry/pipeline"
           echo "### Pushed \`pipeline:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Point both Container Apps jobs at it:" >> "$GITHUB_STEP_SUMMARY"
+          echo "Point your Container Apps job at it:" >> "$GITHUB_STEP_SUMMARY"
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
           echo "az containerapp job update -g <your-resource-group> -n <ingest-job> \\" >> "$GITHUB_STEP_SUMMARY"
-          echo "  --image $registry/pipeline:${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "az containerapp job update -g <your-resource-group> -n <enrich-job> \\" >> "$GITHUB_STEP_SUMMARY"
           echo "  --image $registry/pipeline:${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
