@@ -14,37 +14,99 @@ exist.
 
 ```mermaid
 flowchart LR
-    API["Source API"] --> ACA["ACA job: ingest"]
-    ACA --> VOL[("Landing zone")]
+    SRC["Source API or open data"]
 
-    subgraph dbx["Databricks: your catalog"]
-        STG["staging"] --> INT["intermediate"] --> MART["marts"]
-        MART -.-> PYM["dbt Python model"]
-        PYM -.-> MART
+    subgraph az["Azure"]
+        ING["ACA job: ingestion container, image tagged by SHA"]
+        ENR["ACA job: enrichment container"]
+
+        subgraph dbx["Databricks (Unity Catalog)"]
+            LAND[("landing zone, ADLS: /Volumes/catalog/landing/raw")]
+            WH["SQL warehouse, 2X-Small"]
+            MODELS["staging, then marts, plus dbt tests"]
+            PYM["dbt Python model on serverless"]
+            OPSTBL[("ops.dbt_test_runs")]
+        end
+
+        AF["Airflow, one VM per team: ingest, dbt build, enrich, publish"]
     end
 
-    VOL --> STG
-    MART --> EN["ACA job: enrich"] --> SYNC["sync: write, then swap"]
-    SYNC --> PG[("analytics schema")] --> BE["backend/"]
-    APP[("app schema")] -.->|"read only, optional"| STG
+    subgraph be["Backend track"]
+        PG[("Postgres: app schema theirs, analytics schema yours")]
+    end
 
-    AF["Airflow, daily"] -.-> ACA
-    AF -.-> STG
-    AF -.-> EN
-    AF -.-> SYNC
-    AF -.->|"on failure"| SL["Slack"]
+    SRC -->|"fetch"| ING
+    ING -->|"raw JSON"| LAND
+    LAND --> WH --> MODELS
+    MODELS -.-> PYM
+    WH -.-> OPSTBL
+    MODELS --> ENR --> PUB["publish: write, then swap"]
+    PUB -->|"outbound sync"| PG
+    PG -.->|"inbound sync"| MODELS
 
-    classDef opt stroke-dasharray:4 3
-    class PYM opt
+    AF -.->|"trigger and wait"| ING
+    AF -.->|"dbt build"| WH
+    AF -.->|"trigger and wait"| ENR
+    AF -.-> PUB
+
+    classDef opt stroke-dasharray:5 4
+    classDef orch fill:#dff3e0,stroke:#4a8055
+    classDef store fill:#dceaf7,stroke:#4a6080
+    class PYM,OPSTBL opt
+    class AF,PUB orch
+    class PG store
 ```
 
-Solid nodes are the four tasks the DAG runs every day. The dashed one is
-optional and ships switched off.
+This is the Week 15 course architecture drawn for one team rather than all
+three. Dashed nodes are optional: the project is complete without them.
+
+Everything around that pipeline, the parts you do not build yourself:
+
+```mermaid
+flowchart LR
+    REPO["team monorepo: data/src, data/dbt, data/airflow/dags"]
+    GHA["GitHub Actions and ACR, no stored secret"]
+    KV["Key Vault, one secret per team"]
+    ING2["ACA jobs"]
+    AF2["Airflow on your team VM"]
+    WH2["SQL warehouse"]
+    PG2[("Postgres, analytics schema")]
+
+    subgraph opsz["Operations"]
+        LOGS["Log Analytics: container job logs"]
+        SLACK["Slack: failure alerts"]
+        HEALTH["Streamlit health page: ACA app, public URL"]
+    end
+
+    REPO -->|"build"| GHA -->|"image tagged by commit"| ING2
+    REPO -->|"dags and dbt project"| AF2
+    KV -->|"the VM identity reads only its own secrets"| AF2
+    ING2 -->|"container stdout"| LOGS
+    AF2 -->|"on failure"| SLACK
+    WH2 -->|"rows and freshness"| HEALTH
+    PG2 -->|"published rows"| HEALTH
+
+    classDef opt stroke-dasharray:5 4
+    classDef code fill:#e8e2f7,stroke:#6b5b95
+    classDef sec fill:#fdebd2,stroke:#b07d3a
+    classDef orch fill:#dff3e0,stroke:#4a8055
+    classDef store fill:#dceaf7,stroke:#4a6080
+    class HEALTH opt
+    class REPO,GHA code
+    class KV sec
+    class AF2 orch
+    class PG2 store
+```
 
 The Databricks box is the part of your work nobody outside the data track ever
 sees. Staging, intermediate models and every model you build while figuring the
 data out live in your catalog. Only the marts cross into Postgres, and only
-through the sync task.
+through the sync task in Airflow.
+
+Three things in that picture are provided for you rather than built by you. CI
+builds the image and pushes it to your registry with no credential stored
+anywhere, Key Vault holds the one secret your Airflow VM may read, and the
+Slack alert is already wired to every task.
 
 Every team runs this shape: ingestion in a container, raw files in your team's
 landing zone, dbt building and testing models in your team's catalog, a second
