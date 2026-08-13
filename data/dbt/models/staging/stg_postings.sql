@@ -7,14 +7,35 @@
 --
 -- Change: rename this model and its columns to your own domain. The folder it
 -- reads comes from LANDING_PATH in your .env, not from anything in here.
+--
+-- This model is a table, not a view, and that is a deliberate choice. A view
+-- would re-read every file in the landing folder for each model and each test
+-- that selects from it, which is more than a dozen full reads per `dbt build`.
+-- As a table the files are read once and everything downstream reads the
+-- result. See dbt_project.yml.
 with
     source as (
 
+        -- `schemaHints` names the type of every field this model uses. Without
+        -- it, JSON types are guessed from the files, and the guess can change:
+        -- the day your source sends "1" instead of 1, a column that was a
+        -- number becomes a string and something downstream breaks for a reason
+        -- that has nothing to do with the model that broke. Naming the types
+        -- means the guess cannot drift.
+        --
+        -- Change: list your own fields here, using the names the source sends,
+        -- not the names you rename them to below.
         select
             *,
             _metadata.file_path as source_file,
             _metadata.file_modification_time as ingested_at
-        from read_files('{{ var("landing_path") }}', format => 'json')
+        from
+            read_files(
+                '{{ var("landing_path") }}',
+                format => 'json',
+                schemahints
+                => 'slug string, title string, company_name string, location string, remote boolean, tags array<string>, created_at bigint'
+            )
 
     ),
 
