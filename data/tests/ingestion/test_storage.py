@@ -90,3 +90,31 @@ def test_the_container_is_chosen_by_the_caller(monkeypatch):
 
     storage.land_raw_json("sthyffpteama", "alex/postings/x.json", [{"a": 1}], container="dev")
     assert captured["container"] == "dev"
+
+
+def test_local_writes_the_same_newline_delimited_bytes(tmp_path):
+    """Same format as the landing zone, so what you inspect locally is what dbt
+    would have read. If these two ever diverge, deciding a shape locally proves
+    nothing about the real run."""
+    records = [{"slug": "a", "title": "One"}, {"slug": "b", "title": "Two"}]
+
+    written = storage.land_local_json(tmp_path, "alex/postings/2026-08-12.json", records)
+
+    destination = tmp_path / "alex" / "postings" / "2026-08-12.json"
+    assert written == 2
+    lines = destination.read_text().splitlines()
+    assert [json.loads(line)["slug"] for line in lines] == ["a", "b"]
+
+
+def test_local_creates_the_folders_it_needs(tmp_path):
+    """The path mirrors the blob key, so it is several folders deep on a machine
+    that has none of them."""
+    storage.land_local_json(tmp_path, "deep/nested/path/2026-08-12.json", [{"a": 1}])
+    assert (tmp_path / "deep" / "nested" / "path" / "2026-08-12.json").exists()
+
+
+def test_local_refuses_an_empty_batch_too(tmp_path):
+    """The same guard as the landing zone: an empty batch is a failed
+    extraction, and a zero-byte file on disk looks like a successful run."""
+    with pytest.raises(ValueError, match="empty"):
+        storage.land_local_json(tmp_path, "raw/x.json", [])
