@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Set up the Postgres database with an 'app' and an 'analytics' schema.
+"""Set up the Postgres database, its schemas, roles and permissions.
 
-Creates the database, both schemas, and one login role per schema. Each role
-administers its own schema and gets read-only access to the other one, for both
-existing and future objects.
+Creates the database, the 'app', 'analytics' and 'analytics_dev' schemas, and a
+login role per owner: 'app_user' owns 'app', 'analytics_user' owns both analytics
+schemas. Each role has full access to the schemas it owns and read-only access to
+the others, for both existing and future objects.
 
 The script is idempotent: re-running it never changes existing state, so a
 failed run can simply be repeated. Existing roles keep their current password
@@ -43,21 +44,22 @@ MAINTENANCE_DATABASE = "postgres"  # the database connected to while creating it
 
 APP_SCHEMA = "app"
 ANALYTICS_SCHEMA = "analytics"
+ANALYTICS_DEV_SCHEMA = "analytics_dev"
 APP_ROLE = "app_user"
 ANALYTICS_ROLE = "analytics_user"
 
 
-class SchemaAccess(NamedTuple):
-    """The schema a role fully administers, and the schema it may only read."""
+ROLES = (APP_ROLE, ANALYTICS_ROLE)
 
-    administers: str
-    read_only: str
-
-
-ROLE_LAYOUT = {
-    APP_ROLE: SchemaAccess(administers=APP_SCHEMA, read_only=ANALYTICS_SCHEMA),
-    ANALYTICS_ROLE: SchemaAccess(administers=ANALYTICS_SCHEMA, read_only=APP_SCHEMA),
+# Every schema, and the role that owns it. A role gets full access to the schemas
+# it owns and read-only access to all the others, so adding a schema here is the
+# only edit needed - there is no second list of read-only grants to keep in sync.
+SCHEMA_OWNERS = {
+    APP_SCHEMA: APP_ROLE,
+    ANALYTICS_SCHEMA: ANALYTICS_ROLE,
+    ANALYTICS_DEV_SCHEMA: ANALYTICS_ROLE,
 }
+
 
 class Privileges(NamedTuple):
     """What a role may do in a schema: on the schema itself, then per object type.
@@ -289,19 +291,21 @@ def report(args: argparse.Namespace, passwords: dict[str, str | None]) -> None:
     unchanged = "(unchanged)"
     print(f"\n✅ Setup complete on {args.host}:{args.port}\n")
     print(f"  database : {NEW_DATABASE}")
-    print(f"  schemas  : {APP_SCHEMA}, {ANALYTICS_SCHEMA}\n")
-    for role, access in ROLE_LAYOUT.items():
+    print(f"  schemas  : {', '.join(SCHEMA_OWNERS)}\n")
+    for role in ROLES:
+        owned = [s for s, owner in SCHEMA_OWNERS.items() if owner == role]
+        read_only = [s for s in SCHEMA_OWNERS if s not in owned]
         print(f"  {role}")
         print(f"    password : {passwords[role] or unchanged}")
-        print(f"    access   : full on '{access.administers}', "
-              f"read-only on '{access.read_only}'")
+        print(f"    access   : full on {', '.join(owned)} — "
+              f"read-only on {', '.join(read_only)}")
 
 
 # --- Entry point -----------------------------------------------------------
 
 def main() -> None:
     args = parse_args()
-    roles = list(ROLE_LAYOUT)
+    roles = list(ROLES)
 
     step("Connecting to %s:%s as '%s'", args.host, args.port, args.admin_user)
     with connect(args, MAINTENANCE_DATABASE) as conn:
@@ -318,16 +322,16 @@ def main() -> None:
         grant_connect(conn, NEW_DATABASE, roles)
 
     with connect(args, NEW_DATABASE) as conn:
-        step("Creating schemas: %s",
-             ", ".join(access.administers for access in ROLE_LAYOUT.values()))
-        for role, access in ROLE_LAYOUT.items():
-            create_schema(conn, access.administers, role)
+        step("Creating schemas:")
+        for schema, owner in SCHEMA_OWNERS.items():
+            create_schema(conn, schema, owner)
 
         step("Granting schema privileges")
         creators = [args.admin_user, *roles]
-        for role, access in ROLE_LAYOUT.items():
-            grant_access(conn, access.administers, role, FULL_ACCESS, creators)
-            grant_access(conn, access.read_only, role, READ_ONLY, creators)
+        for schema, owner in SCHEMA_OWNERS.items():
+            for role in roles:
+                grant_access(conn, schema, role,
+                             FULL_ACCESS if role == owner else READ_ONLY, creators)
 
     report(args, passwords)
 
