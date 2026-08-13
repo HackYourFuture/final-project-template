@@ -25,9 +25,20 @@ DEVELOPMENT_CONTAINER = "dev"
 def blob_path(
     source_name: str, run_date: str | None = None, prefix: str = PRODUCTION_PREFIX
 ) -> str:
-    """Where one run's file goes. One file per source per day."""
+    """Where one run's file goes. One file per source per day.
+
+    The date is a folder, `ingest_date=2026-08-12/`, not part of the filename.
+    That layout is a convention every engine that reads files understands: a
+    folder named `key=value` is a partition, so dbt gets an `ingest_date`
+    column for free without anyone parsing a filename.
+
+    What it buys you in practice is a bad day being one directory. When a
+    source has an outage and sends you nonsense, deleting that day and running
+    the pipeline again for it is one folder deleted and one command, and
+    nothing else in the landing zone is touched.
+    """
     run_date = run_date or datetime.now(tz=UTC).date().isoformat()
-    return f"{prefix}/{source_name}/{run_date}.json"
+    return f"{prefix}/{source_name}/ingest_date={run_date}/data.json"
 
 
 def land_raw_json(
