@@ -128,9 +128,10 @@ limit.
 
 Your raw files live in your team's own storage account, in a container called
 `landing`. That same container is registered in Unity Catalog as a volume, so
-the file the container writes as `landing/raw/postings/2026-08-12.json` is the
-file dbt reads at `/Volumes/<your catalog>/landing/raw/postings/`. One copy of
-the bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
+the file the container writes as
+`landing/raw/postings/ingest_date=2026-08-12/data.json` is the file dbt reads
+at `/Volumes/<your catalog>/landing/raw/postings/`. One copy of the bytes, two
+ways to reach it: Azure tooling on one side, SQL on the other.
 
 The two tracks meet in the backend's database, which has one schema per side.
 You write marts into `analytics`, which the backend reads. The backend writes
@@ -445,9 +446,9 @@ a column changes shape in three weeks you can re-read it and find out when.
 
 Your team's storage account has two containers, each registered in Unity
 Catalog as a volume. `landing` is the scheduled pipeline's, and the file it
-writes as `landing/raw/postings/2026-08-12.json` is the file dbt reads at
-`/Volumes/<catalog>/landing/raw/postings/`. One copy of the bytes, two ways to
-reach it: Azure tooling on one side, SQL on the other.
+writes as `landing/raw/postings/ingest_date=2026-08-12/data.json` is the file
+dbt reads at `/Volumes/<catalog>/landing/raw/postings/`. One copy of the
+bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
 
 `dev` is the other one, and it is where your own runs land. It appears next to
 the first as `/Volumes/<catalog>/landing/dev/`. Two containers rather than two
@@ -456,8 +457,32 @@ on a folder: this is the difference between separation you are asked to
 observe and separation you cannot get around.
 
 One file per source per day, so a re-run replaces its own file instead of
-doubling your data. Change the layout if you like, and change `LANDING_PATH`
-to match.
+doubling your data. The date is a folder rather than part of the filename:
+`postings/ingest_date=2026-08-12/data.json`. A folder named `key=value` is a
+partition, a convention every engine that reads files understands, so dbt gets
+an `ingest_date` column without anyone parsing a filename.
+
+What that buys you is a bad day being one directory. When a source has an
+outage and sends nonsense for a day, the fix is to delete that folder and run
+the pipeline again for that date, and nothing else in the landing zone is
+touched:
+
+```bash
+az storage blob delete-batch --account-name sthyffpteam<x> --source dev \
+  --pattern 'your-name/postings/ingest_date=2026-08-12/*' --auth-mode login
+uv run python -m src.ingestion.pipeline --run-date 2026-08-12
+```
+
+> ⚠️ It does not speed up `dbt build`. Skipping folders only helps a query
+> that filters on the partition column, and staging deliberately reads every
+> day so its de-duplication can pick the newest version of each record.
+
+One sharp edge if you landed files before this layout existed: once a
+`ingest_date=` folder appears beside them, `read_files` treats the folder as
+the partition root and **silently ignores** files sitting at the old depth. No
+error, they just stop appearing in your models. Move or delete them.
+
+Change the layout if you like, and change `LANDING_PATH` to match.
 
 **Raw means raw.** The job validates before it writes, but it lands what the
 source sent, not what validation produced. Parsing is a gate deciding whether
