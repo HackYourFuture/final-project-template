@@ -68,13 +68,13 @@ Three tracks, three layers, and one database where two of them meet.
 flowchart LR
     EXT["External sources"]
 
-    subgraph de["Data Track"]
+    subgraph de["Data"]
         ING["Ingest raw records"]
         MODEL["Clean, deduplicate, join"]
         MART[("Published tables")]
     end
 
-    subgraph be["Backend Track"]
+    subgraph be["Backend"]
         API["REST API"]
         subgraph db["One PostgreSQL database"]
             ANA[("analytics schema: data writes")]
@@ -83,7 +83,7 @@ flowchart LR
         end
     end
 
-    subgraph fe["Frontend Track"]
+    subgraph fe["Frontend"]
         UI["Web application"]
     end
 

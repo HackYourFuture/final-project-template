@@ -31,7 +31,7 @@ flowchart LR
         AF["Airflow, one VM per team: ingest, dbt build, publish"]
     end
 
-    subgraph be["Backend track"]
+    subgraph be["Backend"]
         PG[("Postgres: app schema theirs, analytics schema yours")]
     end
 
