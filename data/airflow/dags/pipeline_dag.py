@@ -88,17 +88,34 @@ def secret(env_name: str, secret_name: str) -> str:
 
 
 def databricks_environment() -> dict[str, str]:
-    """Exactly what dbt/profiles.yml reads, plus the tenant for the token.
+    """Exactly what dbt/profiles.yml reads, plus what it needs to sign in.
 
     One dictionary, so dbt and the Python steps cannot point at different
     places. Leave one out and dbt exits before it runs.
+
+    Who it signs in as depends on where it runs, and the rule is the same one
+    profiles.yml uses. On your machine `data/.env` has your own token, so that
+    is you, and the team's service principal is neither needed nor available.
+    On the VM there is no token, so it fetches the service principal from Key
+    Vault with the machine's identity.
+
+    Getting this wrong is not theoretical: asking for the service principal
+    unconditionally made `airflow tasks test publish_to_backend` fail on a
+    laptop with "TEAM is not set", which is the documented way to try the
+    publish step locally.
     """
-    team = setting("TEAM")
-    return {
+    where = {
         "DATABRICKS_HOST": setting("DATABRICKS_HOST"),
         "DATABRICKS_HTTP_PATH": setting("DATABRICKS_HTTP_PATH"),
         "DATABRICKS_CATALOG": setting("DATABRICKS_CATALOG"),
         "DBT_SCHEMA": setting("DBT_SCHEMA"),
+    }
+    if os.environ.get("DATABRICKS_TOKEN"):
+        return where
+
+    team = setting("TEAM")
+    return {
+        **where,
         "AZURE_TENANT_ID": setting("AZURE_TENANT_ID"),
         "DATABRICKS_CLIENT_ID": secret("DATABRICKS_CLIENT_ID", f"fp-databricks-client-id-{team}"),
         "DATABRICKS_CLIENT_SECRET": secret(
@@ -176,10 +193,16 @@ def final_project_pipeline():
         # makes `analytics_user`; the defaults below are what the rehearsal
         # database uses until the real one exists.
         user = setting("BACKEND_PG_USER", "analytics_writer")
-        password = secret(
-            "BACKEND_PG_PASSWORD",
-            setting("BACKEND_PG_SECRET", f"fp-pg-analytics-writer-{setting('TEAM')}"),
-        )
+        # Two steps rather than one nested call, and deliberately. Written as
+        # one, the default secret name interpolates the team eagerly, so a
+        # local run with the password already in .env still failed with "TEAM
+        # is not set" while fetching a secret it was never going to use.
+        password = os.environ.get("BACKEND_PG_PASSWORD")
+        if not password:
+            secret_name = setting("BACKEND_PG_SECRET", "") or (
+                f"fp-pg-analytics-writer-{setting('TEAM')}"
+            )
+            password = secret("BACKEND_PG_PASSWORD", secret_name)
         # sslmode=require in Azure; the local container has no certificate, so
         # `prefer` keeps one DSN working in both places.
         sslmode = setting("BACKEND_PG_SSLMODE", "require")
