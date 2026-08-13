@@ -75,9 +75,12 @@ flowchart LR
     end
 
     subgraph be["Backend Track"]
-        ANA[("analytics schema")]
         API["REST API"]
-        APP[("app schema")]
+        subgraph db["One PostgreSQL database"]
+            ANA[("analytics schema: data writes")]
+            APP[("app schema: backend writes")]
+            ANA ~~~ APP
+        end
     end
 
     subgraph fe["Frontend Track"]
