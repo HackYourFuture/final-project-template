@@ -19,3 +19,8 @@ models:
       - name: posted_at
         description: When the posting was published at the source.
         tests: [not_null]
+      - name: ingest_date
+        description: >
+          The day whose folder this row was read from, taken from the
+          `ingest_date=<date>/` directory the ingestion job writes. When you
+          saw the posting, not when it was posted: use posted_at for that.
