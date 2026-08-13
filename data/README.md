@@ -15,18 +15,34 @@ exist.
 ```mermaid
 flowchart LR
     API["Source API"] --> ACA["Container Apps job<br/>fetch and validate"]
-    ACA --> VOL[("Landing zone<br/>raw JSON files")]
-    VOL --> DBT["dbt on Databricks<br/>staging and marts"]
-    DBT --> EN["Container Apps job<br/>enrichment"]
-    EN --> PG[("Backend Postgres<br/>analytics schema")]
+    ACA --> VOL[("Landing zone<br/>raw JSON, one file per run")]
+
+    subgraph dbx["Databricks: your catalog, nobody else reads it"]
+        STG["staging<br/>typed, one row per source record"]
+        INT["intermediate<br/>reshaped, still private"]
+        MART["marts<br/>the shape you publish"]
+    end
+
+    VOL --> STG --> INT --> MART
+
+    MART --> EN["Container Apps job<br/>enrichment, optional"]
+    MART --> SYNC["sync task<br/>write, then swap"]
+    EN --> SYNC
+    SYNC --> PG[("Backend Postgres<br/>analytics schema")]
     PG --> BE["backend/"]
-    BE -.->|read their tables| DBT
+    APP[("Backend Postgres<br/>app schema")] -.->|"read only, optional"| STG
+
     AF["Airflow<br/>daily"] -.-> ACA
-    AF -.-> DBT
+    AF -.-> STG
     AF -.-> EN
-    AF -.-> PG
-    AF -.->|on failure| SL["Slack"]
+    AF -.-> SYNC
+    AF -.->|"on failure"| SL["Slack"]
 ```
+
+The Databricks box is the part of your work nobody outside the data track ever
+sees. Staging, intermediate models and every model you build while figuring the
+data out live in your catalog. Only the marts cross into Postgres, and only
+through the sync task.
 
 Every team runs this shape: ingestion in a container, raw files in your team's
 landing zone, dbt building and testing models in your team's catalog, a second

@@ -62,15 +62,58 @@ sprints, supported by a group of mentors: Product Manager and a Tech Lead. The p
 
 ## High-level Architecture
 
+Three tracks, three layers, and one database where two of them meet.
+
 ```mermaid
 flowchart LR
-    User([User]) --> FE["Frontend<br/>Next.js"]
-    FE <-->|HTTP, JSON| BE["REST API<br/>Spring Boot"]
-    BE <-->|SQL| DB[("PostgreSQL")]
-    DATA -->|SQL| DB
-    DATA["Data pipeline<br/>Python · dbt · Airflow"] --> EXTERNAL["External data sources<br/>CSV · JSON · APIs"]
+    EXT["External sources<br/>APIs, open data"]
 
+    subgraph de["Data Track"]
+        ING["Ingest<br/>raw records, unchanged"]
+        MODEL["Model and test<br/>clean, deduplicate, join"]
+        MART[("Published tables<br/>one per use case")]
+    end
+
+    subgraph be["Backend Track"]
+        ANA[("analytics schema<br/>data writes, backend reads")]
+        API["REST API"]
+        APP[("app schema<br/>accounts, saved items,<br/>records admins create")]
+    end
+
+    subgraph fe["Frontend Track"]
+        UI["Web application"]
+    end
+
+    EXT --> ING --> MODEL --> MART
+    MART -->|"outbound sync, daily"| ANA
+    ANA -->|"read only"| API
+    API -->|"read and write"| APP
+    UI -->|"HTTP, JSON"| API
+    User([User]) --> UI
+    APP -.->|"inbound sync, optional"| MODEL
+
+    classDef d fill:#e8f4ea,stroke:#4a8055
+    classDef b fill:#e8eef7,stroke:#4a6080
+    classDef f fill:#f7f0e8,stroke:#806a4a
+    class ING,MODEL,MART d
+    class ANA,APP,API b
+    class UI f
 ```
+
+Three rules are worth reading off that picture, because they are the ones teams
+get wrong:
+
+- **The two schemas have two owners.** The data pipeline writes `analytics` and
+  nothing else. The backend writes `app` and nothing else. Neither side has
+  permission to write the other's, which is enforced by two database roles
+  rather than by everyone remembering.
+- **The data track publishes finished tables, not raw material.** The backend
+  should be able to fill a screen with one `SELECT`, without joining sources or
+  knowing where a row came from.
+- **Records the application creates stay on the application's side.** If an
+  admin adds a record by hand and the same thing later arrives from an external
+  source, deciding they are the same thing is application logic. It happens
+  behind the API, not in the pipeline.
 
 ## Project structure
 
