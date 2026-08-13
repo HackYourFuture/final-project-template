@@ -9,19 +9,30 @@ from src.ingestion import storage
 
 
 def test_explicit_run_date_wins():
-    assert storage.blob_path("postings", "2026-08-12") == "raw/postings/2026-08-12.json"
+    """The date is a folder, not part of the filename. `ingest_date=<date>/` is
+    the Hive partition convention, so read_files hands dbt an ingest_date
+    column instead of everyone parsing filenames, and replaying one day is a
+    folder to delete."""
+    assert (
+        storage.blob_path("postings", "2026-08-12")
+        == "raw/postings/ingest_date=2026-08-12/data.json"
+    )
 
 
 def test_default_run_date_is_todays_utc_date():
     """Not the local date. A run at 01:00 in Amsterdam is still yesterday in UTC,
     and the whole pipeline agrees on UTC or it agrees on nothing."""
-    assert storage.blob_path("postings").endswith(f"{datetime.now(tz=UTC).date().isoformat()}.json")
+    today = datetime.now(tz=UTC).date().isoformat()
+    assert storage.blob_path("postings").endswith(f"ingest_date={today}/data.json")
 
 
 def test_a_dev_prefix_keeps_your_runs_out_of_the_teams_files():
     """The isolation the whole local loop depends on: your ingestion writes
     somewhere the scheduled pipeline never reads."""
-    assert storage.blob_path("postings", "2026-08-12", "alex") == "alex/postings/2026-08-12.json"
+    assert (
+        storage.blob_path("postings", "2026-08-12", "alex")
+        == "alex/postings/ingest_date=2026-08-12/data.json"
+    )
 
 
 def test_the_two_containers_are_named_apart():
