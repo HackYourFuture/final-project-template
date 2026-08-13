@@ -36,5 +36,39 @@ services:
     depends_on:
       - backend
 
+  # The two data jobs. Neither is started by `docker compose up`: they run and
+  # exit, it is not a service. A container job you add later shares this
+  # image and differs only in the command, which is how Container Apps jobs are
+  # configured in Azure.
+  #
+  #   docker compose build pipeline          build the image the job uses
+  #   docker compose run --rm pipeline       the ingestion job
+  #
+  # Neither can authenticate to Azure from your laptop: a container has no
+  # `az login` and no metadata service. Build here, run in Azure, and use
+  # `uv run python -m src.ingestion.pipeline` when you want to run something locally.
+  pipeline:
+    build: ./data
+    image: final-project-pipeline
+    profiles: [data]
+    # Optional, like the Airflow override's. Older Compose versions read every
+    # service's env_file while loading the project, even for an inactive
+    # profile, which made `docker compose up -d db` fail on a clean clone
+    # before anyone had written data/.env.
+    env_file:
+      - path: ./data/.env
+        required: false
+    environment:
+      # Reach the database by its service name on the compose network.
+      BACKEND_PG_HOST: db
+      BACKEND_PG_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   db-data:
+
+networks:
+  default:
+    name: finalproject

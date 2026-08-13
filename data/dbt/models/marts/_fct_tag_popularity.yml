@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: fct_tag_popularity
+    description: >
+      One row per tag, with how many postings carry it and when it was first
+      and last seen. Not published to the backend: Airflow syncs fct_postings
+      only. Built from int_posting_tags, the same model fct_postings counts.
+    columns:
+      - name: tag
+        description: The tag, lowercased and trimmed.
+        tests: [unique, not_null]
+      - name: postings
+        description: How many postings carry this tag.
+        tests: [not_null]
+      - name: first_seen_at
+        description: Earliest posted_at among postings with this tag.
+        tests: [not_null]
+      - name: last_seen_at
+        description: Most recent posted_at. A tag whose last_seen_at is old is going out of fashion.
+        tests: [not_null]

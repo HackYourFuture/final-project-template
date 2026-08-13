@@ -1,0 +1,58 @@
+# Local development only. Astro merges this into its own compose stack.
+#
+# Two things happen here:
+#
+# 1. The pipeline code and the dbt project live one level up, next to this
+#    folder, so there is exactly one copy of each. The bind mounts make them
+#    visible inside the Airflow containers rather than duplicating them.
+#
+# 2. The containers join the "finalproject" network created by
+#    ../../docker-compose.yml, so they reach the database as "db" on port
+#    5432. Going through host.docker.internal instead would break on any
+#    machine that already runs something on port 5432.
+#
+# Start the database first:  (cd ../.. && docker compose up -d db)
+# When you deploy, bake these paths into the image with COPY.
+x-local: &local
+  volumes:
+    # Mounted inside dags/ on purpose. Airflow puts the dags folder on the
+    # Python path before it parses anything, so the DAG can `import src` with
+    # no PYTHONPATH to set and nothing to remember when it is deployed.
+    - ../src:/usr/local/airflow/dags/src:ro
+    - ../dbt:/usr/local/airflow/include/dbt:rw
+  # Your data/.env, so a task running here reads the same settings and
+  # credentials your own `uv run` commands do. On the team VM there is no such
+  # file: settings come from Airflow Variables and secrets from Key Vault. The
+  # DAG tries the environment first, which is what makes one file work in both
+  # places. `required: false` so the stack still starts before you have made
+  # the file.
+  env_file:
+    - path: ../.env
+      required: false
+  environment:
+    # Astro mounts the project here; the team VM uses /opt/airflow. The DAG
+    # reads this rather than hardcoding either one.
+    DBT_PROJECT_DIR: /usr/local/airflow/include/dbt
+    # Reach the database by its service name: your .env says localhost, which
+    # inside this container would mean the container itself.
+    BACKEND_PG_HOST: db
+    BACKEND_PG_PORT: "5432"
+    # The local Postgres has no TLS certificate.
+    BACKEND_PG_SSLMODE: prefer
+  networks:
+    - default
+    - finalproject
+
+services:
+  scheduler:
+    <<: *local
+  dag-processor:
+    <<: *local
+  api-server:
+    <<: *local
+  triggerer:
+    <<: *local
+
+networks:
+  finalproject:
+    external: true

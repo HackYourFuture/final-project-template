@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: stg_postings
+    description: Cleaned postings, one row per posting.
+    columns:
+      - name: posting_id
+        description: Unique identifier from the source system.
+        tests: [unique, not_null]
+      - name: title
+        description: Job title as advertised.
+        tests: [not_null]
+      - name: company_name
+        description: Hiring company.
+        tests: [not_null]
+      - name: is_remote
+        description: Whether the posting is advertised as remote.
+        tests: [not_null]
+      - name: posted_at
+        description: When the posting was published at the source.
+        tests: [not_null]

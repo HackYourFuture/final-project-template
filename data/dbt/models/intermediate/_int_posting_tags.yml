@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: int_posting_tags
+    description: >
+      One row per posting and tag, tags lowercased and trimmed. Postings with
+      no tags do not appear here at all. Not published to the backend: it
+      exists so fct_postings and fct_tag_popularity agree on what a tag is.
+    # Neither column is unique on its own, so the grain is checked by
+    # tests/assert_one_row_per_posting_tag.sql rather than by a `unique` test
+    # here. dbt_utils has a test for column pairs; this project installs no
+    # packages, and one small SQL file is a fair trade for that.
+    columns:
+      - name: posting_id
+        description: The posting this tag belongs to.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_postings')
+              field: posting_id
+      - name: tag
+        description: One tag, lowercased and trimmed.
+        tests: [not_null]
+      - name: posted_at
+        description: Carried from the posting, so this model can be filtered by date on its own.
+        tests: [not_null]

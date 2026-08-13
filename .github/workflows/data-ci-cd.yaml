@@ -1,0 +1,183 @@
+# Data CI/CD
+#
+# Lints and tests the pipeline on every pull request, and on a merge to main
+# builds the pipeline image and pushes it to your team's Azure Container
+# Registry. The ingestion container job runs that image.
+#
+# Why this pushes to ACR while the backend and frontend push to GHCR: the
+# Container Apps job that runs this image pulls it with a managed identity that
+# holds AcrPull on your team's registry. Pulling from GHCR instead would mean
+# storing a GitHub token in Azure, which is the one thing this setup is built
+# to avoid.
+#
+# There is no password anywhere in this workflow. GitHub gives the job a
+# short-lived token stating which repository and branch is running, Azure has
+# been told in advance to trust exactly that statement, and returns an access
+# token in exchange. Your teacher sets this up once per team; you never handle
+# a credential.
+#
+# The variables below are set on the repository, not in this file. They are
+# identifiers, not secrets: on their own they grant nothing.
+
+name: Data CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**"
+      - ".github/workflows/data-ci-cd.yaml"
+  pull_request:
+    paths:
+      - "data/**"
+      - ".github/workflows/data-ci-cd.yaml"
+  # Rebuild and push without a code change: useful when a base image has a
+  # security update, or to check the whole path still works before a demo.
+  workflow_dispatch:
+
+concurrency:
+  group: docker-build-data-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: ./data
+        run: uv sync --extra dev --extra sync
+
+      # Four tools, four jobs. ruff finds mistakes, black settles Python
+      # layout, sqlfmt settles SQL layout, and ty checks the types. Each runs
+      # as its own step so a failure names itself instead of hiding in a wall
+      # of output.
+      - name: Lint
+        working-directory: ./data
+        run: uv run ruff check .
+
+      - name: Format (Python)
+        working-directory: ./data
+        # Fix locally with `uv run black .`
+        run: uv run black --check .
+
+      - name: Format (SQL)
+        working-directory: ./data
+        # Fix locally with `uv run sqlfmt dbt/models dbt/tests`
+        run: uv run sqlfmt --check dbt/models dbt/tests
+
+      - name: Types
+        working-directory: ./data
+        run: uv run ty check src tests
+
+      - name: Test
+        working-directory: ./data
+        run: uv run pytest -q
+
+  dag-integrity:
+    # Catches the mistake that costs the most time: a DAG that does not import
+    # is invisible in Airflow, with no error anywhere except the scheduler log.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Airflow
+        # Pinned to the version your team's VM runs.
+        run: |
+          python -m pip install --upgrade pip
+          pip install "apache-airflow==3.2.*" apache-airflow-providers-standard pytest
+
+      - name: Import every DAG
+        working-directory: ./data/airflow
+        env:
+          AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "True"
+          AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+          # The DAG imports the pipeline package from data/src, the same one
+          # the containers run. On the VM it is mounted next to the dags; here
+          # it is one directory up.
+          PYTHONPATH: ${{ github.workspace }}/data
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+
+          # Airflow's DAG processor puts the dags folder on sys.path before it
+          # parses a file, which is what lets a DAG import a helper sitting next
+          # to it. A bare DagBag() does not, so without this line the check is
+          # stricter than the runtime and fails on an import that works in
+          # production.
+          sys.path.insert(0, os.path.abspath("dags"))
+
+          from airflow.models.dagbag import DagBag
+
+          bag = DagBag("dags", include_examples=False)
+          if bag.import_errors:
+              for path, error in bag.import_errors.items():
+                  print(f"::error file={path}::{error}")
+              sys.exit(1)
+          print(f"{len(bag.dags)} DAG(s) imported cleanly: {', '.join(bag.dags)}")
+          PY
+
+  build:
+    needs: [lint-and-test, dag-integrity]
+    # Never on a pull request. A PR, including one from a fork, cannot mint an
+    # Azure token: the trust is pinned to a branch of this repository, so the
+    # exchange fails rather than the push being blocked after the fact.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for the token exchange. Without it, sign-in fails.
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to the registry
+        run: az acr login --name "${{ vars.ACR_NAME }}"
+
+      - name: Build and push
+        working-directory: ./data
+        run: |
+          set -euo pipefail
+          registry="${{ vars.ACR_NAME }}.azurecr.io"
+          # One image. The ingestion job runs it as it is, and any container
+          # job you add later runs the same image with a different command:
+          # two images would mean two builds, two tags to keep in step, and two
+          # places for a dependency to drift.
+          #
+          # Two tags. Point your Container Apps jobs at the commit SHA, never at
+          # latest: when a number looks wrong, the tag on the job that wrote it
+          # tells you exactly which code produced it.
+          docker build \
+            -t "$registry/pipeline:${{ github.sha }}" \
+            -t "$registry/pipeline:latest" \
+            .
+          docker push --all-tags "$registry/pipeline"
+          echo "### Pushed \`pipeline:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Point your Container Apps job at it:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "az containerapp job update -g <your-resource-group> -n <ingest-job> \\" >> "$GITHUB_STEP_SUMMARY"
+          echo "  --image $registry/pipeline:${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

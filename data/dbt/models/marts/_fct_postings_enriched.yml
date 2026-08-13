@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: fct_postings_enriched
+    description: >
+      One row per posting, with the discipline added. This is the table the
+      sync publishes into the backend's analytics schema, so it is the actual
+      contract: every column here reaches the application, and renaming or
+      removing one breaks it. Adding a column is safe.
+    columns:
+      - name: posting_id
+        description: Stable unique identifier. Use this as the API resource id.
+        tests: [unique, not_null]
+      - name: discipline
+        description: >
+          Which discipline the title belongs to, decided by the rules in
+          fct_postings_enriched.py. Never null: a title matching nothing is
+          `other`.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["data", "backend", "frontend", "devops", "mobile", "other"]
+      - name: enriched_at
+        description: When this row was last classified. Use it to show freshness in the UI.
+        tests: [not_null]

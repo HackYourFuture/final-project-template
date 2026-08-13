@@ -207,3 +207,29 @@ build/
 # System
 .DS_Store
 thumbs.db
+
+# --- Python (data track) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# --- dbt ---
+target/
+dbt_packages/
+# Written by dbt on first run and holds a per-machine id, not a setting.
+.user.yml
+
+# --- Airflow (Astro) ---
+# .astro/config.yaml must be committed: without it the folder is not an Astro
+# project and `astro dev start` refuses to run.
+.astro/config.yaml.lock
+airflow_settings.yaml
+
+# --- data track: local secrets ---
+data/.env
+data/airflow/.env
