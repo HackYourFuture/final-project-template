@@ -103,7 +103,7 @@ docker pull ghcr.io/<org>/<repo>/backend:latest
 Run it, pointing at your database:
 
 ```bash
-docker run -p 8080:8080 -e DB_HOST=my-db-host -e DB_PORT=5432 -e DB_NAME=project_db -e DB_SCHEMA=public -e DB_USER=<user> -e DB_PASSWORD=<password> ghcr.io/<org>/<repo>/backend:latest
+docker run -p 8080:8080 -e DB_HOST=my-db-host -e DB_PORT=5432 -e DB_NAME=project_db -e DB_SCHEMA=app -e DB_USER=<user> -e DB_PASSWORD=<password> ghcr.io/<org>/<repo>/backend:latest
 ```
 
 Two things to watch:
@@ -124,7 +124,7 @@ All configuration lives in [`application.yaml`](src/main/resources/application.y
 | `DB_HOST` | `localhost` | Database host (server name or IP address) |
 | `DB_PORT` | `5432` | Database port |
 | `DB_NAME` | `project_db` | Database name |
-| `DB_SCHEMA` | `public` | Database schema |
+| `DB_SCHEMA` | `app` | Database schema |
 | `DB_USER` | `admin` | Database username |
 | `DB_PASSWORD` | `password` | Database password |
 | `SPRING_PROFILES_ACTIVE` | — | Active profile: `dev` or `prod`. None is active unless you set it; the Docker image defaults to `prod` |
@@ -270,7 +270,7 @@ The `user` package is your reference — deliberately small and complete.
 | `Connection refused` on port 5432 | PostgreSQL isn't running — start the container from [Quick start](#quick-start) |
 | `FATAL: database "project_db" does not exist` | The database was created under another name. Create `project_db`, or set `DB_NAME` to the name you have |
 | `password authentication failed for user "admin"` | Wrong `DB_USER` / `DB_PASSWORD` for this database |
-| `relation "users" does not exist`, or Flyway hits `permission denied for schema public` | `DB_SCHEMA` names a schema your `DB_USER` may not write to — the repository SQL uses unqualified table names and resolves them through it. Point it at a schema the user owns |
+| `relation "users" does not exist`, or Flyway hits `permission denied for schema app` | `DB_SCHEMA` names a schema your `DB_USER` may not write to — the repository SQL uses unqualified table names and resolves them through it. Point it at a schema the user owns |
 | `Could not find a valid Docker environment` while running `./mvnw test` | Docker isn't running — the tests start their own database container |
 | `Migration checksum mismatch` | An applied migration was edited. Revert it and add a new `V…` file |
 | `403 Forbidden` on your new endpoint | Not listed in `SecurityConfig`; anything unlisted requires authentication |

@@ -1,3 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=${DB_SCHEMA}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  flyway:
+    schemas: ${DB_SCHEMA}
+
 logging:
   level:
     root: INFO

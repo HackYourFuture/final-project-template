@@ -22,6 +22,7 @@ services:
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_SCHEMA: app
     ports:
       - "8080:8080"
     depends_on:
