@@ -230,10 +230,12 @@ az login
 ```
 
 **6. Check you can reach your landing zone.** Your teacher grants each team
-member `Storage Blob Data Contributor` on your storage account. Owner or
-Contributor on the resource group is *not* enough: Azure separates managing a
-storage account from reading what is inside it, and this trips up nearly
-everyone the first time.
+member two roles, one per container: `Storage Blob Data Contributor` on `dev`,
+so your own runs can write there, and `Storage Blob Data Reader` on `landing`,
+so you can read what the scheduled pipeline wrote without being able to
+overwrite it. Owner or Contributor on the resource group is *not* enough:
+Azure separates managing a storage account from reading what is inside it, and
+this trips up nearly everyone the first time.
 
 ```bash
 az storage blob list --account-name <your storage account> \
