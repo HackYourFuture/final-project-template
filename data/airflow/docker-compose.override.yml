@@ -6,12 +6,18 @@
 #    folder, so there is exactly one copy of each. The bind mounts make them
 #    visible inside the Airflow containers rather than duplicating them.
 #
-# 2. The containers join the "finalproject" network created by
-#    ../../docker-compose.yml, so they reach the database as "db" on port
-#    5432. Going through host.docker.internal instead would break on any
-#    machine that already runs something on port 5432.
+# 2. Nothing else. The containers reach the outside world normally, which is
+#    all they need: the publish task writes `analytics_dev` on the team's real
+#    Postgres, dbt talks to Databricks, and neither is on this machine.
 #
-# Start the database first:  (cd ../.. && docker compose up -d db)
+#    There used to be a third thing here. The stack joined a "finalproject"
+#    network and pinned BACKEND_PG_HOST to the local `db` container, back when
+#    local runs published to a Postgres in Docker. That is gone: overriding the
+#    host here would silently send a task to a different database than the one
+#    `uv run` writes, which is the opposite of what this file is for. It also
+#    meant `astro dev start` failed unless you had first started a database the
+#    data pipeline no longer touches.
+#
 # When you deploy, bake these paths into the image with COPY.
 x-local: &local
   volumes:
@@ -33,15 +39,6 @@ x-local: &local
     # Astro mounts the project here; the team VM uses /opt/airflow. The DAG
     # reads this rather than hardcoding either one.
     DBT_PROJECT_DIR: /usr/local/airflow/include/dbt
-    # Reach the database by its service name: your .env says localhost, which
-    # inside this container would mean the container itself.
-    BACKEND_PG_HOST: db
-    BACKEND_PG_PORT: "5432"
-    # The local Postgres has no TLS certificate.
-    BACKEND_PG_SSLMODE: prefer
-  networks:
-    - default
-    - finalproject
 
 services:
   scheduler:
@@ -52,7 +49,3 @@ services:
     <<: *local
   triggerer:
     <<: *local
-
-networks:
-  finalproject:
-    external: true
