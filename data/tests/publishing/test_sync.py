@@ -127,3 +127,29 @@ def test_reading_an_empty_mart_is_refused():
     warehouse = FakeWarehouse()
     with pytest.raises(ValueError, match="no rows"):
         sync.read_mart(warehouse, "main", "fct_postings_enriched")
+
+
+def test_the_source_schema_is_stamped_on_the_table(connection):
+    """One shared `analytics_dev` means the last publish wins, which is right for
+    a place two tracks meet but leaves nobody able to say why the columns changed.
+    The comment names the warehouse schema the rows came from."""
+    sync.publish("dsn", "analytics_dev", "fct_postings", COLUMNS, ROWS,
+                 source="team_a.dev_alex")
+
+    comment = connection.log[index_of(connection.log, "comment on table")]
+    assert '"analytics_dev"."fct_postings"' in comment
+    assert "from team_a.dev_alex at " in comment
+
+
+def test_the_stamp_lands_after_the_swap(connection):
+    """Comment the published table, not the staging one: the rename would carry
+    the comment across, but only by accident of ordering."""
+    sync.publish("dsn", "analytics_dev", "fct_postings", COLUMNS, ROWS, source="s")
+    assert index_of(connection.log, "rename to") < index_of(connection.log, "comment on table")
+
+
+def test_no_source_means_no_comment(connection):
+    """Callers that do not know where the rows came from should not write a
+    misleading stamp, and an unstamped table is better than a wrong one."""
+    sync.publish("dsn", "analytics", "fct_postings", COLUMNS, ROWS)
+    assert not any("comment on table" in statement for statement in connection.log)
