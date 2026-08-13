@@ -40,12 +40,24 @@ DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/airflow/include/dbt")
 # dbt-core <1.10.10, so a wildcard stops resolving on the next patch release.
 # Bump the two together. uvx, because the Airflow image ships a newer Python
 # than stable dbt-core supports.
-# `--target prod` picks the service principal. The default target is `dev`,
-# which signs in through a browser: right on a laptop, impossible here.
-DBT_COMMAND = (
-    "uvx --python 3.11 --from 'dbt-core==1.10.9' --with 'dbt-databricks==1.10.11' "
-    f"dbt build --target prod --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
-)
+DBT_RUNNER = "uvx --python 3.11 --from 'dbt-core==1.10.9' --with 'dbt-databricks==1.10.11' dbt"
+
+
+def dbt_command() -> str:
+    """The dbt command, aimed at whoever is running it.
+
+    The same rule as databricks_environment(), and it has to be the same rule
+    or the two disagree: a token in the environment is you on your machine, so
+    target `dev`; no token is the VM, so target `prod` and the team's service
+    principal. Hardcoding `--target prod` made the documented local run fail
+    with "Env var required but not provided: 'DATABRICKS_CLIENT_ID'", asking a
+    laptop for a credential it is deliberately not allowed to have.
+    """
+    target = "dev" if os.environ.get("DATABRICKS_TOKEN") else "prod"
+    return (
+        f"{DBT_RUNNER} build --target {target} "
+        f"--project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
+    )
 
 
 def setting(name: str, default: str | None = None) -> str:
@@ -157,7 +169,7 @@ def final_project_pipeline():
         import subprocess
 
         result = subprocess.run(
-            DBT_COMMAND,
+            dbt_command(),
             shell=True,
             check=False,
             env={**os.environ, **databricks_environment()},
