@@ -59,6 +59,12 @@ with
             -- ISO string, cast it instead.
             timestamp_seconds(created_at) as posted_at,
             source_file,
+            -- The day whose folder this row was read from. It comes from the
+            -- `ingest_date=<date>/` directory the ingestion job writes, and
+            -- read_files turns that folder name into a column. Not the same as
+            -- posted_at, which is when the source says the job was posted:
+            -- this is when you saw it.
+            ingest_date,
             ingested_at
         from source
 
