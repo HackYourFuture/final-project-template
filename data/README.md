@@ -67,7 +67,7 @@ the diagram above. `common/` is what more than one stage needs.
 | `src/common/aca.py` | Starts a container job and waits for it | No |
 | `dbt/models/` | Staging reads the volume, the mart is the contract | Yes: your domain |
 | `dbt/tests/` | Two custom tests, including a zero-row check | Add your own |
-| `tests/` | Unit tests, no credentials needed, under a second | Add as you build |
+| `tests/` | Unit tests, in folders mirroring `src/`. No credentials, under a second | Add as you build |
 | `airflow/dags/pipeline_dag.py` | The four tasks, wired in order | Only to add a step |
 | `airflow/dags/alerts.py` | Posts to Slack when any task fails | No |
 | `Dockerfile` | The one image both container jobs run | Rarely |

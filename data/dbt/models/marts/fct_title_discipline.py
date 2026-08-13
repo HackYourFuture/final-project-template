@@ -8,7 +8,7 @@ Enable it in `dbt_project.yml` and it becomes a normal node in the graph:
 `dbt build` runs it in order, `ref()` works, and you can test its output. See
 `optional/README.md` for the two settings it needs.
 
-Its tests are in `tests/test_fct_title_discipline.py`, not next to this file:
+Its tests are in `tests/dbt/test_fct_title_discipline.py`, not next to this file:
 dbt reads every `.py` under `models/` as a model and refuses one that defines
 no `model()`, so a test file here stops the whole project from parsing.
 
