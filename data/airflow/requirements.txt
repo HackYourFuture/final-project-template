@@ -20,9 +20,9 @@
 psycopg[binary]>=3.2.0
 # src/warehouse.py loads .env so the same code runs on your machine.
 python-dotenv>=1.0.0
-# src/warehouse.py signs in with DefaultAzureCredential when no token is set.
-# The token for the management API is a plain IMDS call in src/aca.py and needs
-# nothing installed.
+# Both src/warehouse.py and src/common/aca.py sign in with
+# DefaultAzureCredential, so a task finds the VM's identity on the VM and the
+# service principal in your .env when you run the DAG in Astro.
 azure-identity>=1.19.0
 
 # Not imported by any task today. They are here so that a task you add which

@@ -90,9 +90,9 @@ def secret(env_name: str, secret_name: str) -> str:
     if from_env:
         return from_env
 
-    from src.common.aca import imds_token
+    from src.common.aca import VAULT_SCOPE, azure_token
 
-    token = imds_token("https://vault.azure.net")
+    token = azure_token(VAULT_SCOPE)
     url = (
         f"https://{setting('KEY_VAULT', 'kv-hyf-data')}.vault.azure.net"
         f"/secrets/{secret_name}?api-version=7.4"
@@ -140,13 +140,13 @@ def databricks_environment() -> dict[str, str]:
 
 def start_job(job_name: str) -> str:
     """Start one Container Apps job and wait for it."""
-    from src.common.aca import imds_token, start_and_wait
+    from src.common.aca import azure_token, start_and_wait
 
     return start_and_wait(
         subscription=setting("AZURE_SUBSCRIPTION"),
         resource_group=setting("AZURE_RESOURCE_GROUP"),
         job_name=job_name,
-        token=imds_token("https://management.azure.com/"),
+        token=azure_token(),
     )
 
 

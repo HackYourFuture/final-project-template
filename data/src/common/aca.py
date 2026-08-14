@@ -2,7 +2,7 @@
 
 Airflow uses this to run the two container steps. Plain HTTP against the
 management API, because the Airflow image has no `az` and no Container Apps
-provider. Authentication is the machine's own identity: no secret on the VM.
+provider.
 """
 
 import json
@@ -13,7 +13,8 @@ import urllib.request
 logger = logging.getLogger(__name__)
 
 API_VERSION = "2024-03-01"
-IMDS_URL = "http://169.254.169.254/metadata/identity/oauth2/token"
+MANAGEMENT_SCOPE = "https://management.azure.com/.default"
+VAULT_SCOPE = "https://vault.azure.net/.default"
 
 SUCCEEDED = "Succeeded"
 FAILED_STATES = ("Failed", "Cancelled", "Degraded")
@@ -23,13 +24,22 @@ class JobFailed(RuntimeError):
     """The container job finished, and not well."""
 
 
-def imds_token(resource: str, opener=urllib.request.urlopen) -> str:
-    """A token for the machine's own identity."""
-    request = urllib.request.Request(
-        f"{IMDS_URL}?api-version=2018-02-01&resource={resource}",
-        headers={"Metadata": "true"},
-    )
-    return json.load(opener(request, timeout=15))["access_token"]
+def azure_token(scope: str = MANAGEMENT_SCOPE) -> str:
+    """A management-API token for whoever is running.
+
+    On the team VM that is the machine's own identity, which the credential
+    chain finds through the instance metadata service. There is no such service
+    on your laptop, so the chain falls through to the service principal in your
+    `.env`, and the DAG you run in Astro starts the same job the VM does.
+
+    The same rule `dbt_command()` and `databricks_environment()` follow: one
+    code path, and where it runs decides who it runs as. Asking the metadata
+    service directly is what used to make this VM-only, and the failure was a
+    fifteen-second timeout rather than anything that named the cause.
+    """
+    from azure.identity import DefaultAzureCredential
+
+    return DefaultAzureCredential().get_token(scope).token
 
 
 def start_and_wait(
