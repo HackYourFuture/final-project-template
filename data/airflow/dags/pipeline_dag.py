@@ -19,8 +19,9 @@ import json
 import logging
 import os
 import urllib.request
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
+import pendulum
 from airflow.sdk import Variable, dag, task
 from alerts import slack_alert
 
@@ -90,9 +91,9 @@ def secret(env_name: str, secret_name: str) -> str:
     if from_env:
         return from_env
 
-    from src.common.aca import imds_token
+    from src.common.aca import VAULT_SCOPE, azure_token
 
-    token = imds_token("https://vault.azure.net")
+    token = azure_token(VAULT_SCOPE)
     url = (
         f"https://{setting('KEY_VAULT', 'kv-hyf-data')}.vault.azure.net"
         f"/secrets/{secret_name}?api-version=7.4"
@@ -140,21 +141,32 @@ def databricks_environment() -> dict[str, str]:
 
 def start_job(job_name: str) -> str:
     """Start one Container Apps job and wait for it."""
-    from src.common.aca import imds_token, start_and_wait
+    from src.common.aca import azure_token, start_and_wait
 
     return start_and_wait(
         subscription=setting("AZURE_SUBSCRIPTION"),
         resource_group=setting("AZURE_RESOURCE_GROUP"),
         job_name=job_name,
-        token=imds_token("https://management.azure.com/"),
+        token=azure_token(),
     )
+
+
+def ingest_mode() -> str:
+    """How ingest runs: local Python (`local`) or ACA job (`aca`)."""
+    mode = setting("INGEST_MODE", "aca").strip().lower()
+    if mode not in {"aca", "local"}:
+        raise RuntimeError("INGEST_MODE must be 'aca' or 'local'.")
+    return mode
 
 
 @dag(
     dag_id="final_project_pipeline",
     description="Ingest to the lakehouse, build and enrich dbt models, publish to the backend",
-    start_date=datetime(2026, 1, 1, tzinfo=UTC),
-    schedule="0 6 * * *",
+    # Cron is evaluated in the start_date's timezone, so 09:00 stays 09:00
+    # CET/CEST across the DST switch instead of drifting like a fixed UTC
+    # offset would.
+    start_date=pendulum.datetime(2026, 1, 1, tz="Europe/Amsterdam"),
+    schedule="0 9 * * *",
     catchup=False,
     # One run at a time. Airflow allows sixteen by default, and two runs would
     # build into the same dbt schema and both publish through the same
@@ -168,7 +180,18 @@ def start_job(job_name: str) -> str:
 def final_project_pipeline():
     @task
     def ingest() -> str:
-        """Fetch the source and land raw files in the team's storage account."""
+        """Fetch the source and land raw files.
+
+        Mode `local`: run src.ingestion.pipeline in this Airflow worker.
+        Mode `aca`: trigger the Container Apps ingest job and wait for it.
+        """
+        mode = ingest_mode()
+        if mode == "local":
+            from src.ingestion import pipeline
+
+            landed = pipeline.run()
+            return f"local ingest landed {landed} records"
+
         return start_job(setting("ACA_INGEST_JOB"))
 
     @task
@@ -195,53 +218,44 @@ def final_project_pipeline():
 
     @task
     def publish_to_backend() -> int:
-        """Copy the enriched mart into the backend's database, atomically."""
-        from src.common.warehouse import Warehouse
-        from src.publishing.sync import publish, read_mart
+        """Copy the enriched mart into the backend's database, atomically.
+
+        The work is in src/publishing/sync.py, which you can also run by hand
+        with `uv run python -m src.publishing.sync`. This task's job is to turn
+        Airflow Variables and Key Vault into the environment that module reads,
+        so both routes build the same connection string.
+        """
+        from src.publishing import sync
 
         os.environ.update(databricks_environment())
-        columns, rows = read_mart(
-            Warehouse.from_env(), setting("DBT_SCHEMA"), "fct_postings_enriched"
-        )
-        # Both are settings, because the role and the secret holding its
-        # password are named when the database is created. `scripts/db-setup.py`
-        # makes `analytics_user`; the defaults below are what the rehearsal
-        # database uses until the real one exists.
-        # `scripts/db-setup.py` creates this role, so the default matches the
-        # database you get by following the README. The rehearsal databases use
-        # `analytics_writer` instead: set the Variable there.
-        user = setting("BACKEND_PG_USER", "analytics_user")
+
+        # Variables win over the environment, so a team that changed one in the
+        # UI gets it here. Only settings that are actually set are copied, so a
+        # value already in the environment survives.
+        for name, default in (
+            ("BACKEND_PG_HOST", ""),
+            ("BACKEND_PG_PORT", "5432"),
+            ("BACKEND_PG_DB", ""),
+            # Default backend publish role used by this project.
+            ("BACKEND_PG_USER", "analytics_user"),
+            ("BACKEND_PG_PUBLISH_SCHEMA", "analytics"),
+            ("BACKEND_PG_SSLMODE", "require"),
+        ):
+            value = setting(name, default)
+            if value:
+                os.environ[name] = value
+
         # Two steps rather than one nested call, and deliberately. Written as
         # one, the default secret name interpolates the team eagerly, so a
         # local run with the password already in .env still failed with "TEAM
         # is not set" while fetching a secret it was never going to use.
-        password = os.environ.get("BACKEND_PG_PASSWORD")
-        if not password:
+        if not os.environ.get("BACKEND_PG_PASSWORD"):
             secret_name = setting("BACKEND_PG_SECRET", "") or (
                 f"fp-pg-analytics-writer-{setting('TEAM')}"
             )
-            password = secret("BACKEND_PG_PASSWORD", secret_name)
-        # sslmode=require in Azure; the local container has no certificate, so
-        # `prefer` keeps one DSN working in both places.
-        sslmode = setting("BACKEND_PG_SSLMODE", "require")
-        dsn = (
-            f"host={setting('BACKEND_PG_HOST')} port={setting('BACKEND_PG_PORT', '5432')} "
-            f"dbname={setting('BACKEND_PG_DB')} user={user} password={password} "
-            f"sslmode={sslmode}"
-        )
-        return publish(
-            dsn,
-            # Your own runs publish to `analytics_dev`, which you may write and
-            # the scheduled run cannot even read. The default is production,
-            # because on the VM there is no .env to say otherwise.
-            setting("BACKEND_PG_PUBLISH_SCHEMA", "analytics"),
-            # The same table name in both schemas, so promotion changes where
-            # the table lives and never what the backend selects.
-            "fct_postings",
-            columns,
-            rows,
-            source=f"{Warehouse.from_env().catalog}.{setting('DBT_SCHEMA')}",
-        )
+            os.environ["BACKEND_PG_PASSWORD"] = secret("BACKEND_PG_PASSWORD", secret_name)
+
+        return sync.run()
 
     ingest() >> dbt_build() >> publish_to_backend()
 

@@ -1,19 +1,30 @@
 """Publish a mart from Databricks into the backend's Postgres database.
 
-Airflow runs this after dbt succeeds. See the README, "The
-two schemas" and "The write-then-swap", for why it works the way it does.
+Airflow runs this after dbt succeeds, and you run it by hand with
+`uv run python -m src.publishing.sync`. Both go through `run()` below, so the
+scheduled publish and your own use one connection string and one set of
+defaults rather than two that drift.
+
+See the README, "The two schemas" and "The write-then-swap", for why it works
+the way it does.
 """
 
+import argparse
 import logging
+import os
+import sys
 from datetime import UTC, datetime
 from typing import LiteralString
 
 import psycopg
 from psycopg.sql import SQL, Identifier, Literal, Placeholder
 
-from ..common.warehouse import Queryable
+from ..common.warehouse import Queryable, Warehouse
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MART = "fct_postings_enriched"
+DEFAULT_TABLE = "fct_postings"
 
 # What a Databricks column becomes in Postgres. Anything not listed becomes
 # text: keeping the value beats guessing at it.
@@ -127,3 +138,47 @@ def publish(
 
     logger.info("published %d rows to %s.%s", len(rows), schema, table)
     return len(rows)
+
+
+def dsn_from_env() -> str:
+    """The connection string, built from the environment both callers share."""
+    missing = [name for name in ("BACKEND_PG_HOST", "BACKEND_PG_DB") if not os.environ.get(name)]
+    if missing:
+        raise RuntimeError(f"{', '.join(missing)} not set. See data/.env.example.")
+
+    return (
+        f"host={os.environ['BACKEND_PG_HOST']} "
+        f"port={os.environ.get('BACKEND_PG_PORT', '5432')} "
+        f"dbname={os.environ['BACKEND_PG_DB']} "
+        f"user={os.environ.get('BACKEND_PG_USER', 'analytics_user')} "
+        f"password={os.environ.get('BACKEND_PG_PASSWORD', '')} "
+        f"sslmode={os.environ.get('BACKEND_PG_SSLMODE', 'require')}"
+    )
+
+
+def run(mart: str = DEFAULT_MART, table: str = DEFAULT_TABLE, schema: str | None = None) -> int:
+    """Read one mart out of the warehouse and replace the backend's copy."""
+    warehouse_schema = os.environ["DBT_SCHEMA"]
+    columns, rows = read_mart(Warehouse.from_env(), warehouse_schema, mart)
+    target_schema = schema or os.environ.get("BACKEND_PG_PUBLISH_SCHEMA", "analytics")
+    return publish(dsn_from_env(), target_schema, table, columns, rows, source=warehouse_schema)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+    parser = argparse.ArgumentParser(description="Publish one mart to the backend's database.")
+    parser.add_argument(
+        "--mart", default=DEFAULT_MART, help=f"warehouse table to read [{DEFAULT_MART}]"
+    )
+    parser.add_argument(
+        "--table", default=DEFAULT_TABLE, help=f"name to write it under [{DEFAULT_TABLE}]"
+    )
+    parser.add_argument("--schema", default=None, help="target schema [BACKEND_PG_PUBLISH_SCHEMA]")
+    args = parser.parse_args()
+
+    try:
+        run(args.mart, args.table, args.schema)
+    except Exception:
+        logger.exception("Publish failed")
+        sys.exit(1)

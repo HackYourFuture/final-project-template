@@ -20,18 +20,12 @@ VAULT = os.environ.get("KEY_VAULT_NAME", "kv-hyf-data")
 WEBHOOK_SECRET = os.environ.get("SLACK_WEBHOOK_SECRET", "fp-slack-webhook")
 
 
-def _imds_token(resource: str) -> str:
-    """A token for the VM's own identity. No secret involved."""
-    url = (
-        "http://169.254.169.254/metadata/identity/oauth2/token"
-        f"?api-version=2018-02-01&resource={resource}"
-    )
-    request = urllib.request.Request(url, headers={"Metadata": "true"})
-    return json.load(urllib.request.urlopen(request, timeout=15))["access_token"]
-
-
 def _webhook_url() -> str:
-    token = _imds_token("https://vault.azure.net")
+    # The VM's own identity, or whatever your .env says when you run this in
+    # Astro on your machine. src/common/aca.py explains the chain.
+    from src.common.aca import VAULT_SCOPE, azure_token
+
+    token = azure_token(VAULT_SCOPE)
     url = f"https://{VAULT}.vault.azure.net/secrets/{WEBHOOK_SECRET}?api-version=7.4"
     request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     return json.load(urllib.request.urlopen(request, timeout=20))["value"]
