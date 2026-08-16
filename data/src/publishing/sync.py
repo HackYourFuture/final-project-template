@@ -5,10 +5,11 @@ two schemas" and "The write-then-swap", for why it works the way it does.
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import LiteralString
 
 import psycopg
-from psycopg.sql import SQL, Identifier, Placeholder
+from psycopg.sql import SQL, Identifier, Literal, Placeholder
 
 from ..common.warehouse import Queryable
 
@@ -63,12 +64,23 @@ def read_backend_table(dsn: str, table: str, schema: str = "app") -> list[dict]:
 
 
 def publish(
-    dsn: str, schema: str, table: str, columns: list[tuple[str, str]], rows: list[list]
+    dsn: str,
+    schema: str,
+    table: str,
+    columns: list[tuple[str, str]],
+    rows: list[list],
+    source: str | None = None,
 ) -> int:
     """Replace the backend's copy of the table, return the row count written.
 
     Load into staging, then swap inside one transaction, so a reader sees the
     whole old version or the whole new one and never a half-written table.
+
+    `source` is the warehouse schema the rows came from, and it is recorded as a
+    comment on the table. One shared `analytics_dev` means the last publish wins,
+    which is the right behaviour for a place two tracks meet but leaves nobody
+    able to say why the columns changed this morning. The comment answers it in
+    any client: `from team_a.dev_alex at 2026-08-13T11:02Z`.
     """
     if not rows:
         raise ValueError("refusing to publish zero rows over an existing table")
@@ -99,6 +111,16 @@ def publish(
             # when there is nothing to replace yet.
             cursor.execute(SQL("drop table if exists {}").format(published))
             cursor.execute(SQL("alter table {} rename to {}").format(staging, Identifier(table)))
+            if source:
+                # A comment, not a column: it describes the table rather than
+                # every row in it, and it survives the swap without widening
+                # what the backend has to select.
+                stamp = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%MZ")
+                cursor.execute(
+                    SQL("comment on table {} is {}").format(
+                        published, Literal(f"from {source} at {stamp}")
+                    )
+                )
         connection.commit()
     finally:
         connection.close()

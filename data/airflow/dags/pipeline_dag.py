@@ -231,10 +231,16 @@ def final_project_pipeline():
         )
         return publish(
             dsn,
+            # Your own runs publish to `analytics_dev`, which you may write and
+            # the scheduled run cannot even read. The default is production,
+            # because on the VM there is no .env to say otherwise.
             setting("BACKEND_PG_PUBLISH_SCHEMA", "analytics"),
+            # The same table name in both schemas, so promotion changes where
+            # the table lives and never what the backend selects.
             "fct_postings",
             columns,
             rows,
+            source=f"{Warehouse.from_env().catalog}.{setting('DBT_SCHEMA')}",
         )
 
     ingest() >> dbt_build() >> publish_to_backend()
