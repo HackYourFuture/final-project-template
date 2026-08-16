@@ -24,8 +24,12 @@ clean-targets:
 
 models:
   final_project:
+    # Tables, so the landing files are read once per run. As views, every model
+    # and every test that selects from staging re-runs `read_files` over the
+    # whole landing folder: one `dbt build` reads every file more than a dozen
+    # times. Materialising once costs a little storage and removes all of that.
     staging:
-      +materialized: view
+      +materialized: table
     # Views, so they cost nothing to store and you can query them while you are
     # working out why a mart looks wrong. `ephemeral` is the other common
     # choice: it pastes the SQL into whatever selects it, which is tidier in the
