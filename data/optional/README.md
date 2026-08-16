@@ -118,15 +118,16 @@ you are using a free one.
 
 ### Where the key lives
 
-In your team's Databricks secret scope, and nowhere else. Not in the repository,
+In your team's Databricks secret scope (`team_a` in the walkthrough; `team_b`,
+`team_c`, or `team_d` on other teams), and nowhere else. Not in the repository,
 not in `data/.env`, not in the dbt project, not in a notebook cell.
 
 ```bash
-databricks secrets put-secret team_<x> openrouter-api-key
+databricks secrets put-secret team_a openrouter-api-key
 ```
 
 That opens an editor; paste the key, save, close. To check it without printing
-it, `databricks secrets list-secrets team_<x>` shows the name and the time it
+it, `databricks secrets list-secrets team_a` shows the name and the time it
 was updated, never the value. Databricks also redacts secrets from job output,
 so a stray `print()` shows `[REDACTED]` rather than your key.
 
@@ -147,7 +148,7 @@ models:
       fct_title_discipline:
         # Was false. Nothing built it while it was.
         +enabled: true
-        +secret_scope: team_<x>
+        +secret_scope: team_a   # team_b, team_c, or team_d on other teams
         # Optional. Leave it out and the model uses the free one it ships with.
         +llm_model: openai/gpt-oss-20b:free
 ```

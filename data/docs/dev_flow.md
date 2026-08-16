@@ -25,7 +25,12 @@ each step by hand, then run the same steps through Airflow. Near the end you
 will run four simple SQL checks — those are how you prove the chain actually
 worked.
 
-Replace `<x>` with your team letter throughout.
+**Team-a walkthrough.** Commands and URLs below use team-a's resources
+(`sthyffpteama`, `team_a`, `rg-hyf-fp-team-a`, `acrhyffpa`,
+`vm-hyf-team-a`). On team-b, team-c, or team-d, run the same steps and swap
+those names — see the table in [`../README.md`](../README.md#setup). Personal
+settings (`LANDING_PREFIX`, `DBT_SCHEMA`, `dev_<yourname>`) stay yours on
+every team.
 
 ## Preflight
 
@@ -132,8 +137,8 @@ The last two lines tell you the count and the exact path:
 
 
 ```text
-landed 175 records, 1411925 bytes, to dev/<your-prefix>/postings/... on sthyffpteam<x>
-Pipeline finished: 175 landed, 0 rejected, readable at /Volumes/team_<x>/landing/dev/<your-prefix>/postings
+landed 175 records, 1411925 bytes, to dev/<your-prefix>/postings/... on sthyffpteama
+Pipeline finished: 175 landed, 0 rejected, readable at /Volumes/team_a/landing/dev/<your-prefix>/postings
 ```
 
 A non-zero reject count is worth reading before you go on: it means records
@@ -152,12 +157,12 @@ arrived that your Pydantic model would not accept.
 # 2. Confirm the bytes exist, and when they were written.
 # Uses your `az login` session (--auth-mode login), and $LANDING_PREFIX from
 # the .env you loaded in step 1, so this lists exactly what you just wrote.
-az storage blob list --account-name sthyffpteam<x> --container-name dev \
+az storage blob list --account-name sthyffpteama --container-name dev \
   --prefix "$LANDING_PREFIX" --auth-mode login \
   --query "[].{name:name,modified:properties.lastModified,bytes:properties.contentLength}" -o tsv
 ```
 
-Next, to double-check, [open the team storage account in Azure Portal](https://portal.azure.com/#@hackyourfuture.nl/resource/subscriptions/1120c89d-2a5f-4a15-a582-2ea34f0bb5c3/resourceGroups/rg-hyf-fp-team-<x>/providers/Microsoft.Storage/storageAccounts/sthyffpteam<x>/containersList).
+Next, to double-check, [open the team storage account in Azure Portal](https://portal.azure.com/#@hackyourfuture.nl/resource/subscriptions/1120c89d-2a5f-4a15-a582-2ea34f0bb5c3/resourceGroups/rg-hyf-fp-team-a/providers/Microsoft.Storage/storageAccounts/sthyffpteama/containersList).
 
 #### Run dbt in Databricks
 
@@ -198,9 +203,9 @@ never ran.
 #### Check results in Databricks Catalog
 
 To confirm the table exists in Databricks Catalog Explorer after the build,
-open your dev schema and table in the browser. Example (team-<x>, `dev_<yourname>`):
+open your dev schema and table in the browser. Example (team-a, `dev_<yourname>`):
 
-[See fct_postings in team_<x>.dev_<yourname> (Databricks Catalog Explorer)](https://adb-7405619530719547.7.azuredatabricks.net/explore/data/team_<x>/dev_<yourname>/fct_postings?o=7405619530719547) in databricks.
+[See fct_postings in team_a.dev_<yourname> (Databricks Catalog Explorer)](https://adb-7405619530719547.7.azuredatabricks.net/explore/data/team_a/dev_<yourname>/fct_postings?o=7405619530719547) in databricks.
 
 Query your mart to confirm the row count and the latest ingestion timestamp:
 
@@ -214,7 +219,7 @@ Query your mart to confirm the row count and the latest ingestion timestamp:
 ```sql
 -- Replace dev_<yourname> with your own dev schema (dev_<yourname>).
 select * 
-from team_<x>.dev_<yourname>.fct_postings
+from team_a.dev_<yourname>.fct_postings
 ```
 
 ![Query results in the Databricks SQL editor](dbx_query_dev.png)
@@ -245,7 +250,7 @@ build the expected data.
 
 ```bash
 # 4. Replace the backend's copy of the mart.
-# Reads team_<x>.dev_<yourname>.fct_postings_enriched from Databricks and
+# Reads team_a.dev_<yourname>.fct_postings_enriched from Databricks and
 # overwrites analytics_dev.fct_postings in Postgres — refuses to run if the
 # source mart is empty, so it never wipes a good table with nothing.
 cd .. && uv run python -m src.publishing.sync
@@ -261,7 +266,7 @@ It prints what it read and what it wrote:
 
 
 ```text
-read 300 rows and 12 columns from team_<x>.dev_<yourname>.fct_postings_enriched
+read 300 rows and 12 columns from team_a.dev_<yourname>.fct_postings_enriched
 published 300 rows to analytics_dev.fct_postings
 
 ```
@@ -416,12 +421,10 @@ deep in the Airflow UI.
 | What it does    | Builds the ingestion image from your current working tree, pushes it to your team's registry, points the dev Container Apps job at it, and starts one execution so you see it work before Airflow does. |
 
 
-For team-<x>, the resource group is `rg-hyf-fp-team-<x>`, the registry is
-`<your-acr-name>`, and the dev job is `job-fp-ingest-dev` — all already in
-`data/.env` as `AZURE_RESOURCE_GROUP`, `ACR_NAME`, and `ACA_INGEST_JOB`. The
-commands below load `.env` so they work as-is, and for any other team just
-picking up this guide, they still work unchanged once that team's `.env` is
-filled in.
+For **team-a**, the resource group is `rg-hyf-fp-team-a`, the registry is
+`acrhyffpa`, and the dev job is `job-fp-ingest-dev` — all in `data/.env.example`.
+On another team, update those four identifiers in `.env` first; the commands
+below are otherwise the same.
 
 ```bash
 cd data
@@ -483,7 +486,7 @@ id=$(az containerapp job show -g "$AZURE_RESOURCE_GROUP" -n "$ACA_INGEST_JOB" --
 echo "https://portal.azure.com/#@hackyourfuture.nl/resource${id}"
 ```
 
-> This should produce the url of the [ACA container](https://portal.azure.com/#@hackyourfuture.nl/resource/subscriptions/1120c89d-2a5f-4a15-a582-2ea34f0bb5c3/resourceGroups/rg-hyf-fp-team-<x>/providers/Microsoft.App/jobs/job-fp-ingest-dev/executionHistory) and you can view the execution history and logs of the ingestion job. You can also view the logs of the ingestion job in the portal.
+> This should produce the url of the [ACA container](https://portal.azure.com/#@hackyourfuture.nl/resource/subscriptions/1120c89d-2a5f-4a15-a582-2ea34f0bb5c3/resourceGroups/rg-hyf-fp-team-a/providers/Microsoft.App/jobs/job-fp-ingest-dev/executionHistory) and you can view the execution history and logs of the ingestion job. You can also view the logs of the ingestion job in the portal.
 
 If it fails here, fix it here — reading `az containerapp job logs show` output
 is faster than reading the same failure surfaced through an Airflow task log.
@@ -559,7 +562,7 @@ the UI to re-set a Variable that a stray restart would silently wipe again.
 # in data/.env
 # Points dbt_build's read at the folder the ACA job writes to, not your
 # personal dev prefix — the two are different paths under the same volume.
-LANDING_PATH=/Volumes/team_<x>/landing/dev/aca-dev/postings
+LANDING_PATH=/Volumes/team_a/landing/dev/aca-dev/postings
 ```
 
 ```yaml
@@ -688,12 +691,12 @@ laptop and the scheduled run can never collide:
 | ACA ingestion job        | `job-fp-ingest-dev`                       | `job-fp-ingest`                                       |
 | Storage container (ADLS) | `dev` (prefix `<your-name>` or `aca-dev`) | `prod` (prefix `raw`)                                 |
 | Databricks schema        | `dev_<yourname>`                          | `analytics`                                           |
-| Airflow                  | your local Astro, `astro dev ps` URL      | `https://vm-hyf-team-<x>.westeurope.cloudapp.azure.com` |
+| Airflow                  | your local Astro, `astro dev ps` URL      | `https://vm-hyf-team-a.westeurope.cloudapp.azure.com` |
 | Postgres schema          | `analytics_dev`                           | `analytics`                                           |
 
 
-The team-<x> prod Airflow is at
-`[vm-hyf-team-<x>.westeurope.cloudapp.azure.com](https://vm-hyf-team-<x>.westeurope.cloudapp.azure.com)`.
+The team-a prod Airflow is at
+`[vm-hyf-team-a.westeurope.cloudapp.azure.com](https://vm-hyf-team-a.westeurope.cloudapp.azure.com)`.
 The other three teams' prod Airflow instances follow the same pattern
 (`vm-hyf-team-a`/`b`/`c`), so if you ever see a URL from another team's
 screen share, do not assume it is yours.
@@ -707,8 +710,8 @@ az keyvault secret show --vault-name kv-hyf-data \
   --name fp-airflow-password-<your-name> --query value -o tsv
 ```
 
-There is also one shared admin login per team, `fp-airflow-admin-team-<x>` for
-team-<x>, for maintainers rather than day-to-day use. Do not confuse either of
+There is also one shared admin login per team, `fp-airflow-admin-team-a` for
+team-a, for maintainers rather than day-to-day use. Do not confuse either of
 these with the older `airflow-ui-password-<name>` / `airflow-webserver-password`
 secrets — those belonged to Week 12's shared class Airflow instance (now
 deallocated), not the final-project team instances; `fp-airflow-*` is the
@@ -823,7 +826,7 @@ above already showed, so it is not repeated here.
 |                 |                                                                                                                                                                                                                                                                                                                 |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Where this runs | GitHub, after merge.                                                                                                                                                                                                                                                                                            |
-| What it does    | Triggers the `build` job, which builds one `pipeline` image and pushes it to `<your-acr-name>` tagged both `latest` and with the commit SHA, then the `deploy-prod` job, which points `job-fp-ingest` — the production Container Apps job, a completely separate job from your `job-fp-ingest-dev` — at that SHA tag. |
+| What it does    | Triggers the `build` job, which builds one `pipeline` image and pushes it to `acrhyffpa` tagged both `latest` and with the commit SHA, then the `deploy-prod` job, which points `job-fp-ingest` — the production Container Apps job, a completely separate job from your `job-fp-ingest-dev` — at that SHA tag. |
 
 
 
@@ -841,7 +844,7 @@ environment variables — not baked into the image — so the one image you
 already validated against `dev` is what runs in production; only the target
 it writes to changes:
 
-- `LANDING_CONTAINER=prod` — the **prod ADLS container** on `sthyffpteam<x>`,
+- `LANDING_CONTAINER=prod` — the **prod ADLS container** on `sthyffpteama`,
 distinct from the `dev` container Mode 1/Mode 2 write to.
 - `LANDING_PREFIX=raw` — replaces your personal `LANDING_PREFIX`.
 
@@ -850,7 +853,7 @@ distinct from the `dev` container Mode 1/Mode 2 write to.
 
 |                 |                                                                                                                                                                                                                                                                                                                             |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Where this runs | The prod Airflow UI, `[vm-hyf-team-<x>.westeurope.cloudapp.azure.com](https://vm-hyf-team-<x>.westeurope.cloudapp.azure.com)` — not your laptop, not Astro — running unattended on the schedule set in `pipeline_dag.py` (currently `0 9 * * *`, `Europe/Amsterdam` — see "The scheduled trigger, and how to change it" below). |
+| Where this runs | The prod Airflow UI, `[vm-hyf-team-a.westeurope.cloudapp.azure.com](https://vm-hyf-team-a.westeurope.cloudapp.azure.com)` — not your laptop, not Astro — running unattended on the schedule set in `pipeline_dag.py` (currently `0 9 * * *`, `Europe/Amsterdam` — see "The scheduled trigger, and how to change it" below). |
 | What it does    | Runs the identical DAG file you tested in Mode 2, with `INGEST_MODE=aca` and `ACA_INGEST_JOB=job-fp-ingest` (the **prod ACA job**, set as an Airflow Variable in prod, not `.env`), reading/writing the **prod ADLS container** and building the **prod Databricks schema**, `DBT_SCHEMA=analytics`.                        |
 
 
@@ -916,7 +919,7 @@ a minute, with no CI/CD deploy job involved.
 
 |                 |                                                                                                                                                |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Where this runs | The **prod Airflow UI** at `[vm-hyf-team-<x>.westeurope.cloudapp.azure.com](https://vm-hyf-team-<x>.westeurope.cloudapp.azure.com)`, and Postgres. |
+| Where this runs | The **prod Airflow UI** at `[vm-hyf-team-a.westeurope.cloudapp.azure.com](https://vm-hyf-team-a.westeurope.cloudapp.azure.com)`, and Postgres. |
 | What it does    | The same four assertions from above, against the **prod Postgres schema** `analytics` instead of your `analytics_dev`.                         |
 
 

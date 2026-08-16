@@ -197,7 +197,7 @@ def model(dbt, session):
     scope = dbt.config.get("secret_scope")
     if not scope:
         raise ClassificationError(
-            "secret_scope is not set. Add `secret_scope: team_<x>` to this "
+            "secret_scope is not set. Add `secret_scope: team_a` (or your catalog) to this "
             "model's config, so it knows which scope holds the API key."
         )
     # `dbutils` exists inside Databricks and nowhere else, which is why the
