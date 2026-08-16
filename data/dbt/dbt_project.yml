@@ -16,7 +16,7 @@ macro-paths: ["macros"]
 # reads a half-written file somebody else is producing. See the README,
 # "Developing locally".
 vars:
-  landing_path: "{{ env_var('LANDING_PATH', '/Volumes/CHANGE_ME/landing/raw/postings') }}"
+  landing_path: "{{ env_var('LANDING_PATH', '/Volumes/CHANGE_ME/landing/prod/postings') }}"
 
 clean-targets:
   - "target"
@@ -24,12 +24,8 @@ clean-targets:
 
 models:
   final_project:
-    # Tables, so the landing files are read once per run. As views, every model
-    # and every test that selects from staging re-runs `read_files` over the
-    # whole landing folder: one `dbt build` reads every file more than a dozen
-    # times. Materialising once costs a little storage and removes all of that.
     staging:
-      +materialized: table
+      +materialized: view
     # Views, so they cost nothing to store and you can query them while you are
     # working out why a mart looks wrong. `ephemeral` is the other common
     # choice: it pastes the SQL into whatever selects it, which is tidier in the

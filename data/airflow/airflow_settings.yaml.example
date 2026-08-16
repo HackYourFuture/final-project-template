@@ -1,0 +1,9 @@
+airflow:
+  connections: []
+  pools: []
+  variables:
+    # Allowed values: local (ingest runs in the Airflow worker) or aca
+    # (ingest runs as an Azure Container Apps job). See docs/dev_flow.md
+    # Mode 1 / Mode 2.
+    - variable_name: INGEST_MODE
+      variable_value: local

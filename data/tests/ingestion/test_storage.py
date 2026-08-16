@@ -36,8 +36,8 @@ def test_a_dev_prefix_keeps_your_runs_out_of_the_teams_files():
 
 
 def test_the_two_containers_are_named_apart():
-    """Not tidiness: `landing` is the one you are not allowed to write."""
-    assert storage.PRODUCTION_CONTAINER == "landing"
+    """Not tidiness: `prod` is the one you are not allowed to write."""
+    assert storage.PRODUCTION_CONTAINER == "prod"
     assert storage.DEVELOPMENT_CONTAINER == "dev"
 
 
@@ -74,7 +74,7 @@ def test_payload_is_one_json_object_per_line(monkeypatch):
 
     lines = captured["payload"].decode().splitlines()
     assert [json.loads(line) for line in lines] == records
-    assert captured["container"] == "landing"
+    assert captured["container"] == "prod"
     assert captured["url"] == "https://sthyffpteama.blob.core.windows.net"
     # Re-running a day must replace that day's file, not fail or duplicate it.
     assert captured["overwrite"] is True

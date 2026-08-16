@@ -20,7 +20,7 @@ flowchart LR
         ING["ACA job: ingestion container, image tagged by SHA"]
 
         subgraph dbx["Databricks (Unity Catalog)"]
-            LAND[("landing zone, ADLS: /Volumes/catalog/landing/raw")]
+            LAND[("landing zone, ADLS: /Volumes/catalog/landing/prod")]
             WH["SQL warehouse, 2X-Small"]
             MODELS["staging, then marts, plus dbt tests"]
             ENRM["fct_postings_enriched: dbt Python model on serverless"]
@@ -127,11 +127,11 @@ with `enabled: false` because it needs an API key first. See
 limit.
 
 Your raw files live in your team's own storage account, in a container called
-`landing`. That same container is registered in Unity Catalog as a volume, so
+`prod`. That same container is registered in Unity Catalog as a volume, so
 the file the container writes as
-`landing/raw/postings/ingest_date=2026-08-12/data.json` is the file dbt reads
-at `/Volumes/<your catalog>/landing/raw/postings/`. One copy of the bytes, two
-ways to reach it: Azure tooling on one side, SQL on the other.
+`prod/raw/postings/ingest_date=2026-08-12/data.json` is the file dbt reads
+at `/Volumes/<your catalog>/landing/prod/postings/`. One copy of the
+bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
 
 The two tracks meet in the backend's database, which has one schema per side.
 You write marts into `analytics`, which the backend reads. The backend writes
@@ -232,7 +232,7 @@ az login
 
 **6. Check you can reach your landing zone.** Your teacher grants each team
 member two roles, one per container: `Storage Blob Data Contributor` on `dev`,
-so your own runs can write there, and `Storage Blob Data Reader` on `landing`,
+so your own runs can write there, and `Storage Blob Data Reader` on `prod`,
 so you can read what the scheduled pipeline wrote without being able to
 overwrite it. Owner or Contributor on the resource group is *not* enough:
 Azure separates managing a storage account from reading what is inside it, and
@@ -240,7 +240,7 @@ this trips up nearly everyone the first time.
 
 ```bash
 az storage blob list --account-name <your storage account> \
-  --container-name landing --auth-mode login -o table
+  --container-name prod --auth-mode login -o table
 ```
 
 An `AuthorizationPermissionMismatch` here means the role is missing or has not
@@ -261,7 +261,7 @@ That fetches the default source and lands one file. Check it arrived, from the
 Databricks SQL editor:
 
 ```sql
-SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/raw/postings',
+SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/prod/postings',
                                 format => 'json');
 ```
 
@@ -313,15 +313,15 @@ and they are the first thing to fill in:
 
 | Setting | Yours | The scheduled run |
 |---|---|---|
-| `LANDING_CONTAINER` | `dev` | `landing` |
+| `LANDING_CONTAINER` | `dev` | `prod` |
 | `LANDING_PREFIX` | `your-name` | `raw` |
-| `LANDING_PATH` | `/Volumes/<catalog>/landing/dev/your-name/postings` | `.../landing/raw/postings` |
+| `LANDING_PATH` | `/Volumes/<catalog>/landing/dev/your-name/postings` | `.../landing/prod/postings` |
 | `DBT_SCHEMA` | `dev_yourname` | `analytics` |
 | `BACKEND_PG_PUBLISH_SCHEMA` | `analytics_dev` | `analytics` |
 | `BACKEND_PG_USER` | `analytics_dev_user` | `analytics_user` |
 
 This is not a naming convention you have to remember. It is what your account
-is allowed to do. You can write the `dev` container and only read `landing`.
+is allowed to do. You can write the `dev` container and only read `prod`.
 You can create and own `dev_` schemas and only read `analytics`. Point your
 `.env` at the production names by mistake and the run stops with a permission
 error, which is a much better afternoon than discovering at the demo that your
@@ -465,9 +465,9 @@ Raw files, not tables. A raw file is exactly what the source sent you, so when
 a column changes shape in three weeks you can re-read it and find out when.
 
 Your team's storage account has two containers, each registered in Unity
-Catalog as a volume. `landing` is the scheduled pipeline's, and the file it
-writes as `landing/raw/postings/ingest_date=2026-08-12/data.json` is the file
-dbt reads at `/Volumes/<catalog>/landing/raw/postings/`. One copy of the
+Catalog as a volume. `prod` is the scheduled pipeline's, and the file it
+writes as `prod/raw/postings/ingest_date=2026-08-12/data.json` is the file
+dbt reads at `/Volumes/<catalog>/landing/prod/postings/`. One copy of the
 bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
 
 `dev` is the other one, and it is where your own runs land. It appears next to

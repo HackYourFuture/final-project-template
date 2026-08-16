@@ -71,7 +71,7 @@ def load_config(local: bool = False) -> Config:
         source_name=os.getenv("SOURCE_NAME", "source"),
         storage_account="" if local else required("STORAGE_ACCOUNT"),
         databricks_catalog=os.getenv("DATABRICKS_CATALOG", "<your catalog>"),
-        # The scheduled run writes `landing/raw`. Your own runs write
+        # The scheduled run writes `prod/raw`. Your own runs write
         # `dev/<your name>`, a different container that you alone can write.
         landing_container=os.getenv("LANDING_CONTAINER", PRODUCTION_CONTAINER),
         landing_prefix=os.getenv("LANDING_PREFIX", PRODUCTION_PREFIX),
