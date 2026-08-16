@@ -1,6 +1,6 @@
 # Script shortcuts
 
-These scripts wrap the commands documented in data/docs/dev_flow.md and the service READMEs.
+These scripts wrap the commands documented in [`data/docs/dev_flow.md`](../data/docs/dev_flow.md) and the service READMEs. That guide uses **team-a** as the worked example; if you are on another team, set your team's values in `data/.env` before running.
 
 ## One-time setup
 

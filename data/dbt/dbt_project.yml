@@ -16,7 +16,8 @@ macro-paths: ["macros"]
 # reads a half-written file somebody else is producing. See the README,
 # "Developing locally".
 vars:
-  landing_path: "{{ env_var('LANDING_PATH', '/Volumes/CHANGE_ME/landing/prod/postings') }}"
+  # Team-a default; override with LANDING_PATH in data/.env (team_b, team_c, …).
+  landing_path: "{{ env_var('LANDING_PATH', '/Volumes/team_a/landing/prod/postings') }}"
 
 clean-targets:
   - "target"
@@ -43,4 +44,4 @@ models:
       # See ../optional/README.md.
       fct_title_discipline:
         +enabled: false
-        +secret_scope: CHANGE_ME
+        +secret_scope: team_a  # your catalog name: team_b, team_c, team_d

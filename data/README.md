@@ -10,6 +10,12 @@ rows arrive, break something, and watch which test catches it. Your job is to
 make it yours, which is a different and more interesting problem than making it
 exist.
 
+> **Team-a walkthrough.** Examples in this folder use team-a's cloud resources
+> (`sthyffpteama`, `team_a`, `rg-hyf-fp-team-a`). If you are on team-b, team-c,
+> or team-d, keep the same commands and replace those names with yours — see
+> [Setup](#setup) for the mapping. Personal settings (`LANDING_PREFIX`,
+> `DBT_SCHEMA`, your Databricks token) stay yours on every team.
+
 ## The pipeline
 
 ```mermaid
@@ -130,7 +136,7 @@ Your raw files live in your team's own storage account, in a container called
 `prod`. That same container is registered in Unity Catalog as a volume, so
 the file the container writes as
 `prod/raw/postings/ingest_date=2026-08-12/data.json` is the file dbt reads
-at `/Volumes/<your catalog>/landing/prod/postings/`. One copy of the
+at `/Volumes/team_a/landing/prod/postings/`. One copy of the
 bytes, two ways to reach it: Azure tooling on one side, SQL on the other.
 
 The two tracks meet in the backend's database, which has one schema per side.
@@ -180,9 +186,19 @@ in place:
 
 What you do once, on your own machine:
 
-**1. Get your team's values.** Your teacher gives you two: your storage account
-name and your catalog. Everything else is the same for all three teams and is
-filled in already.
+**1. Copy `.env` and adjust for your team.** `data/.env.example` is prefilled
+with **team-a** as the worked example. If that is your team, you only need your
+personal values (prefix, dev schema, Databricks token, Postgres password from
+Key Vault). On another team, swap the four team identifiers:
+
+| If you are on | Storage account | Catalog | Resource group | Registry |
+|---|---|---|---|---|
+| team-a | `sthyffpteama` | `team_a` | `rg-hyf-fp-team-a` | `acrhyffpa` |
+| team-b | `sthyffpteamb` | `team_b` | `rg-hyf-fp-team-b` | `acrhyffpb` |
+| team-c | `sthyffpteamc` | `team_c` | `rg-hyf-fp-team-c` | `acrhyffpc` |
+| team-d | `sthyffpteamd` | `team_d` | `rg-hyf-fp-team-d` | `acrhyffpd` |
+
+The full dev walkthrough is in [`docs/dev_flow.md`](docs/dev_flow.md).
 
 **2. Generate your Databricks token.** The same one you made in Week 13, and
 for the same reason: it authenticates dbt as *you*. Your name in the top bar,
@@ -220,8 +236,10 @@ cd data
 cp .env.example .env      # a different file: data/.env.example, the pipeline's
 ```
 
-Fill in the two values from step 1, your token, and the `analytics_user`
-password from step 3.
+Add your token, your `LANDING_PREFIX` and `DBT_SCHEMA`, and the Postgres
+secrets from Key Vault (commands are in `.env.example`; team-a names are shown
+— replace `team-a` with your team letter if needed). Step 3 is only for the
+optional local Postgres container at the repository root.
 
 **5. Sign in to Azure.** The pipeline authenticates as you locally, and as its
 managed identity in Azure. Same code, no secret either way.
@@ -239,7 +257,8 @@ Azure separates managing a storage account from reading what is inside it, and
 this trips up nearly everyone the first time.
 
 ```bash
-az storage blob list --account-name <your storage account> \
+# Team-a example — replace sthyffpteama with your storage account if needed.
+az storage blob list --account-name sthyffpteama \
   --container-name prod --auth-mode login -o table
 ```
 
@@ -261,7 +280,7 @@ That fetches the default source and lands one file. Check it arrived, from the
 Databricks SQL editor:
 
 ```sql
-SELECT count(*) FROM read_files('/Volumes/<your catalog>/landing/prod/postings',
+SELECT count(*) FROM read_files('/Volumes/team_a/landing/prod/postings',
                                 format => 'json');
 ```
 
@@ -488,7 +507,7 @@ the pipeline again for that date, and nothing else in the landing zone is
 touched:
 
 ```bash
-az storage blob delete-batch --account-name sthyffpteam<x> --source dev \
+az storage blob delete-batch --account-name sthyffpteama --source dev \
   --pattern 'your-name/postings/ingest_date=2026-08-12/*' --auth-mode login
 uv run python -m src.ingestion.pipeline --run-date 2026-08-12
 ```
