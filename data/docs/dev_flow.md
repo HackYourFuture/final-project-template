@@ -179,7 +179,7 @@ For refresher take a look at week 13's chapter [dbt on Databricks](https://app.n
 # 3. Build the models and run the tests.
 # --project .. points dbt at data/dbt/dbt_project.yml, while `uv run` still
 # resolves dependencies from data/pyproject.toml one level up.
-cd dbt && uv run --project .. dbt build
+cd dbt && uv run --project .. --extra dbt dbt build
 ```
 
 You are looking for a successful summary at the end of the run, for example:
