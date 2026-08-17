@@ -221,7 +221,7 @@ def final_project_pipeline():
         """Copy the enriched mart into the backend's database, atomically.
 
         The work is in src/publishing/sync.py, which you can also run by hand
-        with `uv run python -m src.publishing.sync`. This task's job is to turn
+        with `uv run --extra sync python -m src.publishing.sync`. This task's job is to turn
         Airflow Variables and Key Vault into the environment that module reads,
         so both routes build the same connection string.
         """

@@ -253,7 +253,7 @@ build the expected data.
 # Reads team_a.dev_<yourname>.fct_postings_enriched from Databricks and
 # overwrites analytics_dev.fct_postings in Postgres — refuses to run if the
 # source mart is empty, so it never wipes a good table with nothing.
-cd .. && uv run python -m src.publishing.sync
+cd .. && uv run --extra sync python -m src.publishing.sync
 ```
 
 It prints what it read and what it wrote:

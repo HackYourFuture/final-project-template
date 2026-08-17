@@ -35,7 +35,7 @@ print_step "Step 3: dbt build"
 print_step "Step 4: publish mart to backend"
 (
   cd "$REPO_ROOT/data"
-  uv run python -m src.publishing.sync
+  uv run --extra sync python -m src.publishing.sync
 )
 
 echo
