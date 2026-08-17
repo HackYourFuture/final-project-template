@@ -1,7 +1,7 @@
 """Publish a mart from Databricks into the backend's Postgres database.
 
 Airflow runs this after dbt succeeds, and you run it by hand with
-`uv run python -m src.publishing.sync`. Both go through `run()` below, so the
+`uv run --extra sync python -m src.publishing.sync`. Both go through `run()` below, so the
 scheduled publish and your own use one connection string and one set of
 defaults rather than two that drift.
 
