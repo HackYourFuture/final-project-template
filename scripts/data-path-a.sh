@@ -29,7 +29,7 @@ az storage blob list \
 print_step "Step 3: dbt build"
 (
   cd "$REPO_ROOT/data/dbt"
-  uv run --project .. dbt build
+  uv run --project .. --extra dbt dbt build
 )
 
 print_step "Step 4: publish mart to backend"

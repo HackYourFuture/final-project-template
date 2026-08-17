@@ -72,7 +72,7 @@ echo "Databricks token check passed (HTTP 200)."
 print_step "Checking dbt connectivity"
 (
   cd "$REPO_ROOT/data/dbt"
-  uv run --project .. dbt debug
+  uv run --project .. --extra dbt dbt debug
 )
 
 print_step "Checking $LANDING_CONTAINER/$LANDING_PREFIX prefix visibility"
