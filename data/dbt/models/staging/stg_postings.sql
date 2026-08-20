@@ -30,6 +30,18 @@ with
             _metadata.file_path as source_file,
             _metadata.file_modification_time as ingested_at
         from
+            -- You do not need a raw table. `read_files` reads the JSON straight
+            -- out of the landing folder, so there is no CREATE TABLE step to
+            -- write and nothing to keep in sync: this staging model is the
+            -- first thing that touches the data.
+            --
+            -- It handles a folder whose files do not all have the same shape:
+            -- it infers one unified schema across every file it reads. A field
+            -- only present in newer files is simply empty for the older rows
+            -- rather than failing the read, so a source that adds a field next
+            -- month needs no backfill and no change here.
+            --
+            -- https://docs.databricks.com/aws/en/sql/language-manual/functions/read_files
             read_files(
                 '{{ var("landing_path") }}',
                 format => 'json',
