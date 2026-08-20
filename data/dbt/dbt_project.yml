@@ -27,10 +27,12 @@ models:
   final_project:
     staging:
       # Tables, not views, because staging reads files rather than a warehouse
-      # table. A view re-runs its `read_files` for every model and every test
-      # that selects from it: with 5 column tests plus 2 downstream models,
-      # that is roughly 8 full scans of the landing folder per `dbt build`.
-      # As a table the files are read once. See the header of stg_postings.sql.
+      # table. A view is a stored query, not a stored result: every statement
+      # that names it re-runs its `read_files`. Nine separate queries select
+      # from this model per `dbt build` (6 column tests, 2 downstream models,
+      # 1 relationship test), so the landing folder is scanned nine times
+      # instead of once. As a table it is built once and the rest read the
+      # result. See the header of stg_postings.sql.
       +materialized: table
     intermediate:
       # Views here: intermediate models select from the staging table, not from
