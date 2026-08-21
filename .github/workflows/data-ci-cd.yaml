@@ -255,3 +255,62 @@ jobs:
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
           echo "az containerapp job start -g $RG -n $JOB" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-dev:
+    # Mode 2 dev ingest job: same image as prod, writes dev/aca-dev instead.
+    # Keeps job-fp-ingest-dev in step with every merge to main without a manual
+    # az containerapp job update from a laptop.
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create or update the dev ingestion job
+        env:
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+          JOB: job-fp-ingest-dev
+          ENVIRONMENT: ${{ vars.ACA_ENVIRONMENT }}
+          IDENTITY: ${{ vars.ACA_IDENTITY }}
+          REGISTRY: ${{ vars.ACR_NAME }}.azurecr.io
+          SUBSCRIPTION: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/pipeline:${{ github.sha }}"
+          identity="/subscriptions/$SUBSCRIPTION/resourcegroups/$RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$IDENTITY"
+          client_id="$(az identity show --ids "$identity" --query clientId -o tsv)"
+
+          env_vars="SOURCE_API_URL=${{ vars.SOURCE_API_URL }} \
+                    SOURCE_NAME=${{ vars.SOURCE_NAME }} \
+                    STORAGE_ACCOUNT=${{ vars.STORAGE_ACCOUNT }} \
+                    LANDING_CONTAINER=dev \
+                    LANDING_PREFIX=aca-dev \
+                    DATABRICKS_CATALOG=${{ vars.DATABRICKS_CATALOG }} \
+                    AZURE_CLIENT_ID=$client_id"
+
+          if az containerapp job show -g "$RG" -n "$JOB" -o none 2>/dev/null; then
+            echo "updating $JOB -> $image"
+            az containerapp job update -g "$RG" -n "$JOB" \
+              --image "$image" --set-env-vars $env_vars -o none
+          else
+            echo "creating $JOB -> $image"
+            az containerapp job create -g "$RG" -n "$JOB" \
+              --environment "$ENVIRONMENT" --trigger-type Manual \
+              --replica-timeout 1800 --replica-retry-limit 1 \
+              --cpu 0.5 --memory 1.0Gi \
+              --image "$image" \
+              --mi-user-assigned "$identity" \
+              --registry-identity "$identity" --registry-server "$REGISTRY" \
+              --env-vars $env_vars -o none
+          fi
+
+          echo "### Deployed \`pipeline:${{ github.sha }}\` to \`$JOB\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Writes to the \`dev\` container under prefix \`aca-dev\`." >> "$GITHUB_STEP_SUMMARY"
