@@ -12,7 +12,7 @@ import logging
 import re
 import time
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -147,12 +147,12 @@ def fetch_console_logs(
     query = _console_log_query(execution)
     deadline = time.monotonic() + max_wait_seconds
     while time.monotonic() < deadline:
-        end = datetime.now(timezone.utc)
+        end = datetime.now(UTC)
         start = started_at - timedelta(minutes=1)
         timespan = f"{start.isoformat().replace('+00:00', 'Z')}/{end.isoformat().replace('+00:00', 'Z')}"
         try:
             lines = _query_log_analytics(workspace_id, query, timespan, token, opener=opener)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Log Analytics query failed for %s: %s", execution, exc)
             lines = []
         if lines:
@@ -207,7 +207,7 @@ def start_and_wait(
     When `team` is set (for example `team-a`), container stdout is pulled from
     the team's Log Analytics workspace (`log-fp-<team>`) into this task log.
     """
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     base = (
         f"https://management.azure.com/subscriptions/{subscription}"
         f"/resourceGroups/{resource_group}/providers/Microsoft.App/jobs/{job_name}"
@@ -228,7 +228,7 @@ def start_and_wait(
             workspace_id = log_analytics_customer_id(
                 subscription, resource_group, team, token, opener=opener
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Could not resolve Log Analytics workspace for %s: %s", team, exc)
 
     def pull_console_logs() -> None:
