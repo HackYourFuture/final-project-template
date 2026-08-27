@@ -21,11 +21,13 @@
 # When you deploy, bake these paths into the image with COPY.
 x-local: &local
   volumes:
-    # Mounted inside dags/ on purpose. Airflow puts the dags folder on the
-    # Python path before it parses anything, so the DAG can `import src` with
-    # no PYTHONPATH to set and nothing to remember when it is deployed.
-    - ../src:/usr/local/airflow/dags/src:ro
-    - ../dbt:/usr/local/airflow/include/dbt:rw
+    # Beside dags/ and include/, not nested under them. Astro already mounts
+    # ./dags and ./include; overlaying ../src on dags/src (or dbt on
+    # include/dbt) can show correct binds in docker inspect while the path is
+    # empty inside the container on some Docker Desktop versions.
+    # /usr/local/airflow is on sys.path, so `import src` -> /usr/local/airflow/src/.
+    - ../src:/usr/local/airflow/src:ro
+    - ../dbt:/usr/local/airflow/dbt:rw
   # Your data/.env, so a task running here reads the same settings and
   # credentials your own `uv run` commands do. On the team VM there is no such
   # file: settings come from Airflow Variables and secrets from Key Vault. The
@@ -38,7 +40,7 @@ x-local: &local
   environment:
     # Astro mounts the project here; the team VM uses /opt/airflow. The DAG
     # reads this rather than hardcoding either one.
-    DBT_PROJECT_DIR: /usr/local/airflow/include/dbt
+    DBT_PROJECT_DIR: /usr/local/airflow/dbt
 
 services:
   scheduler:
