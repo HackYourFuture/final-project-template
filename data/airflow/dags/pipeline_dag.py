@@ -148,6 +148,7 @@ def start_job(job_name: str) -> str:
         resource_group=setting("AZURE_RESOURCE_GROUP"),
         job_name=job_name,
         token=azure_token(),
+        team=setting("TEAM"),
     )
 
 

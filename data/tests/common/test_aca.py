@@ -7,7 +7,7 @@ it would hide well: the pipeline stays green and only the numbers go wrong.
 import pytest
 from conftest import RecordingOpener
 
-from src.common.aca import JobFailed, start_and_wait
+from src.common.aca import JobFailed, filter_application_log_lines, start_and_wait
 
 STARTED = {"name": "job-ingest-abc123"}
 
@@ -86,3 +86,39 @@ def test_start_is_a_post_to_the_right_url():
     )
     assert opener.requests[0].get_method() == "POST"
     assert "/providers/Microsoft.App/jobs/job-ingest/start" in opener.urls[0]
+
+
+def test_success_pulls_console_logs_when_team_is_set(monkeypatch):
+    workspace = {"properties": {"customerId": "28f43cc9-8c87-4bad-9711-7d2cee32dddd"}}
+    log_rows = {"tables": [{"rows": [["fetched 10 records"]]}]}
+    opener = RecordingOpener([STARTED, workspace, execution("Succeeded"), log_rows])
+    tokens = iter(["mgmt-token", "la-token"])
+    monkeypatch.setattr("src.common.aca.azure_token", lambda scope=None: next(tokens))
+
+    name = start_and_wait(
+        subscription="sub",
+        resource_group="rg-hyf-fp-team-a",
+        job_name="job-ingest",
+        token="mgmt-token",
+        team="team-a",
+        opener=opener,
+        sleep=lambda _seconds: None,
+    )
+
+    assert name == "job-ingest-abc123"
+    assert any("loganalytics.io" in url for url in opener.urls)
+
+
+def test_filter_application_log_lines_drops_azure_sdk_noise():
+    lines = [
+        "2026-08-27 10:34:56,365 INFO src.ingestion.ingest Received 175 record(s)",
+        "2026-08-27 10:34:56,374 INFO azure.identity._credentials.managed_identity noise",
+        "    'Metadata': 'REDACTED'",
+        "2026-08-27 10:34:57,474 INFO src.ingestion.storage landed 175 records",
+        "2026-08-27 10:34:57,476 INFO pipeline Pipeline finished",
+    ]
+    assert filter_application_log_lines(lines) == [
+        "2026-08-27 10:34:56,365 INFO src.ingestion.ingest Received 175 record(s)",
+        "2026-08-27 10:34:57,474 INFO src.ingestion.storage landed 175 records",
+        "2026-08-27 10:34:57,476 INFO pipeline Pipeline finished",
+    ]
