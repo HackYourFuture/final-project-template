@@ -75,7 +75,9 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "$BASE_SHA" 2>/dev/null || true
-          changed=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- \
+          # Three-dot diff: merge-base..head, same scope as GitHub's "Files changed".
+          # Two-dot base..head counts main-only commits when the branch is behind.
+          changed=$(git diff --numstat "$BASE_SHA"..."$HEAD_SHA" -- \
             . \
             ':(exclude)**/uv.lock' \
             ':(exclude)**/package-lock.json' \
