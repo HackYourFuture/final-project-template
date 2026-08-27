@@ -58,23 +58,43 @@ jobs:
         working-directory: ./data
         run: uv sync --extra dev --extra sync
 
-      # On a pull request, lint/format/types only the files this PR touches under
-      # data/. A full-tree `ruff check .` would fail a clean DAG PR because of
-      # someone else's pre-existing issue on main. Push to main still checks
-      # everything so main stays the gate.
+      # Lint/format/types only the files this change touches under data/. A
+      # full-tree `ruff check .` would fail a clean DAG PR (or merge) because of
+      # someone else's pre-existing issue elsewhere in the tree. Pytest still
+      # runs the whole suite — that is a behaviour gate, not a style gate.
       - name: List changed data files
         id: changes
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            mapfile -t files < <(
-              git diff --name-only --diff-filter=ACMR \
-                "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
-                -- 'data/'
-            )
+          event="${{ github.event_name }}"
+          if [ "$event" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+          elif [ "$event" = "push" ]; then
+            before="${{ github.event.before }}"
+            # First push to a new ref has a zero before SHA — fall back to the
+            # parent of this commit when there is one.
+            if [ "$before" = "0000000000000000000000000000000000000000" ] || [ -z "$before" ]; then
+              if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+                range="HEAD^...HEAD"
+              else
+                range=""
+              fi
+            else
+              range="${before}...${{ github.sha }}"
+            fi
           else
-            files=()
+            # workflow_dispatch: check what this tip changed vs its parent.
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              range="HEAD^...HEAD"
+            else
+              range=""
+            fi
+          fi
+
+          files=()
+          if [ -n "$range" ]; then
+            mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$range" -- 'data/')
           fi
 
           py=()
@@ -101,11 +121,7 @@ jobs:
             echo "typed<<EOF"
             printf '%s\n' "${src_or_tests[@]+"${src_or_tests[@]}"}"
             echo "EOF"
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              echo "scope=pr"
-            else
-              echo "scope=all"
-            fi
+            echo "range=$range"
           } >> "$GITHUB_OUTPUT"
 
       # Four tools, four jobs. ruff finds mistakes, black settles Python
@@ -115,28 +131,21 @@ jobs:
       - name: Lint
         working-directory: ./data
         env:
-          SCOPE: ${{ steps.changes.outputs.scope }}
           FILES: ${{ steps.changes.outputs.python }}
         run: |
-          if [ "$SCOPE" = "all" ]; then
-            uv run ruff check .
-          elif [ -z "${FILES}" ]; then
+          if [ -z "${FILES}" ]; then
             echo "No Python files changed under data/; skipping ruff."
           else
-            # shellcheck disable=SC2086
             printf '%s\n' "$FILES" | xargs uv run ruff check
           fi
 
       - name: Format (Python)
         working-directory: ./data
-        # Fix locally with `uv run black .` (or black on the paths you changed)
+        # Fix locally with `uv run black <paths you changed>`
         env:
-          SCOPE: ${{ steps.changes.outputs.scope }}
           FILES: ${{ steps.changes.outputs.python }}
         run: |
-          if [ "$SCOPE" = "all" ]; then
-            uv run black --check .
-          elif [ -z "${FILES}" ]; then
+          if [ -z "${FILES}" ]; then
             echo "No Python files changed under data/; skipping black."
           else
             printf '%s\n' "$FILES" | xargs uv run black --check
@@ -144,14 +153,11 @@ jobs:
 
       - name: Format (SQL)
         working-directory: ./data
-        # Fix locally with `uv run sqlfmt dbt/models dbt/tests`
+        # Fix locally with `uv run sqlfmt <paths you changed>`
         env:
-          SCOPE: ${{ steps.changes.outputs.scope }}
           FILES: ${{ steps.changes.outputs.sql }}
         run: |
-          if [ "$SCOPE" = "all" ]; then
-            uv run sqlfmt --check dbt/models dbt/tests
-          elif [ -z "${FILES}" ]; then
+          if [ -z "${FILES}" ]; then
             echo "No SQL files changed under data/; skipping sqlfmt."
           else
             printf '%s\n' "$FILES" | xargs uv run sqlfmt --check
@@ -160,12 +166,9 @@ jobs:
       - name: Types
         working-directory: ./data
         env:
-          SCOPE: ${{ steps.changes.outputs.scope }}
           FILES: ${{ steps.changes.outputs.typed }}
         run: |
-          if [ "$SCOPE" = "all" ]; then
-            uv run ty check src tests
-          elif [ -z "${FILES}" ]; then
+          if [ -z "${FILES}" ]; then
             echo "No src/ or tests/ Python files changed; skipping ty."
           else
             printf '%s\n' "$FILES" | xargs uv run ty check
