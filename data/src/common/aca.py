@@ -149,7 +149,9 @@ def fetch_console_logs(
     while time.monotonic() < deadline:
         end = datetime.now(UTC)
         start = started_at - timedelta(minutes=1)
-        timespan = f"{start.isoformat().replace('+00:00', 'Z')}/{end.isoformat().replace('+00:00', 'Z')}"
+        timespan = (
+            f"{start.isoformat().replace('+00:00', 'Z')}/{end.isoformat().replace('+00:00', 'Z')}"
+        )
         try:
             lines = _query_log_analytics(workspace_id, query, timespan, token, opener=opener)
         except Exception as exc:  # noqa: BLE001
